@@ -30,3 +30,16 @@ void termArgAddParam(TUArgParser* parser, TUParam param) {
     assert(!paramExists(parser, param.shortName));
     parser->params[parser->count++] = param;
 }
+
+void termArgAddOption(TUArgParser* parser, char name, const char* longName, const char* desc) {
+    termArgAddParam(parser, (TUParam){TU_ARG_OPTION, name, longName, desc, NULL});
+}
+
+void termArgAddOptionLong(TUArgParser* parser, const char* longName, const char* desc) {
+    termArgAddParam(parser, (TUParam){TU_ARG_OPTION, '\0', longName, desc, NULL});
+}
+
+void termArgAddValueLong(TUArgParser* parser, const char* longName, const char* desc,
+                         const char* value) {
+    termArgAddParam(parser, (TUParam){TU_ARG_VALUE, '\0', longName, desc, value});
+}

@@ -61,6 +61,12 @@ typedef struct {
 
 void termArgParserInit(TUArgParser* parser, int argc, const char** argv);
 void termArgAddParam(TUArgParser* parser, TUParam param);
+
+void termArgAddOption(TUArgParser* parser, char name, const char* longName, const char* desc);
+void termArgAddOptionLong(TUArgParser* parser, const char* longName, const char* desc);
+void termArgAddValueLong(TUArgParser* parser, const char* longName, const char* desc,
+                         const char* value);
+
 int termArgParse(TUArgParser* parser, TUArg* args, int count);
 
 void termPrintHelp(FILE* out, const TUArgParser* parser);
