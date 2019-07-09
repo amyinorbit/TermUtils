@@ -13,6 +13,7 @@
 void termArgParserInit(TUArgParser* parser, int argc, const char** argv) {
     assert(parser && "cannot initialise a null parser");
 
+    parser->count = 0;
     parser->start = argv + 1;
     parser->end = argv + argc;
     parser->inOptions = true;

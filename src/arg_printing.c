@@ -35,6 +35,6 @@ void termPrintHelp(FILE* out, const TUArgParser* parser) {
         }
         fprintf(out, "\n");
     }
-    fprintf(out, "      --%-22s %-40s\n", "version", "print version number");
+    fprintf(out, "     --%-22s %-40s\n", "version", "print version number");
     fprintf(out, " -%c, --%-22s %-40s\n", 'h', "help", "print this help message");
 }
