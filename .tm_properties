@@ -1,0 +1,5 @@
+projectDirectory        = $CWD
+
+PROJECT_NAME            = 'TermUtils'
+PROJECT_CPYEAR          = '2019'
+PROJECT_LICENSE         = 'MIT'
