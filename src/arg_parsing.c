@@ -60,11 +60,11 @@ static inline bool isPositional(const char* arg, size_t length) {
 }
 
 static inline bool isShort(const char* arg, size_t length) {
-    return length >= 2 && arg[0] == '-' && isalpha(arg[1]);
+    return length >= 2 && arg[0] == '-' && isalnum(arg[1]);
 }
 
 static inline bool isLong(const char* arg, size_t length) {
-    return length >= 3 && arg[0] == '-' && arg[1] == '-' && isalpha(arg[2]);
+    return length >= 3 && arg[0] == '-' && arg[1] == '-' && isalnum(arg[2]);
 }
 
 static inline int id(const TermParam* param) {
@@ -143,5 +143,5 @@ TermArgResult termArgParse(TermArgParser* parser, const TermParam* options, int 
     if(!parser->inOptions || isPositional(arg, length)) return positionalArg(parser);
     if(isShort(arg, length)) return shortArg(parser, options, count);
     if(isLong(arg, length)) return longArg(parser, options, count);
-    return bail(kTermArgDone);
+    return fail(parser, "'%s' is not a valid argument", arg);
 }
