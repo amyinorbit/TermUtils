@@ -64,9 +64,8 @@ void termInfo(const char* program, const char* format, ...) {
 void termPrintUsage(FILE* out, const char* program, const char** uses, int count) {
     termReset(out);
     termBold(out, true);
-    termColorFG(out, kTermBlack);
     fprintf(out, "Usage: ");
-    termBold(out, false);
+    termReset(out);
     for(int i = 0; i < count; ++i) {
         if(i > 0) fprintf(out, "  or   ");
         fprintf(out, "%s %s\n", program, uses[i]);

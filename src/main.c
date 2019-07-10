@@ -5,8 +5,8 @@
 
 static const TermParam options[] = {
     {'v', 0, "debug-vm", kTermArgOption, "print debug information (like -x -s)"},
-    {'n', 0, "syntax-only", kTermArgOption, "stop compilation before code generation"},
-    {0, 'O', "optimize", kTermArgValue, "specify a code optimization level"}
+    {'n', 0, "syntax-only", kTermArgOption, "stop compilation before code generation.\nThis argument has a lot of text, and probably\nexplains some non-trivial side effects."},
+    {0, 'O', "optimize-some-long-option", kTermArgValue, "specify a code optimization level"}
 };
 
 static const char* uses[] = {
