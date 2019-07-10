@@ -18,7 +18,6 @@ static TermArgResult fail(TermArgParser* parser, const char* format, ...) {
     va_start(args, format);
     vsnprintf(parser->error, TU_MAX_ERROR_SIZE, format, args);
     va_end(args);
-    fputs("\n", stderr);
     return (TermArgResult){kTermArgError, NULL};
 }
 

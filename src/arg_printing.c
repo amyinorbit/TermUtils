@@ -9,9 +9,14 @@
 //===--------------------------------------------------------------------------------------------===
 #include <string.h>
 #include <term/arg.h>
+#include <term/colors.h>
 
 void termPrintHelp(FILE* out, const TermParam* params, int count) {
+    termReset(out);
+    termBold(out, true);
+    termColorFG(out, kTermBlack);
     printf("Options\n");
+    termBold(out, false);
 
     for(int i = 0; i < count; ++i) {
         TermParam param = params[i];
