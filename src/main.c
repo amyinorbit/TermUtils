@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <term/arg.h>
+#include <term/colors.h>
 
 static const TermParam options[] = {
     {'v', 0, "debug-vm", kTermArgOption, "print debug information (like -x -s)"},
@@ -8,6 +9,43 @@ static const TermParam options[] = {
 };
 
 int main(int argc, const char** argv) {
+    
+    for(char c1 = kTermBlack; c1 <= kTermWhite; ++ c1) {
+        for(char c2 = kTermBlack; c2 <= kTermWhite; ++ c2) {
+            termColorFG(stdout, c1);
+            termColorBG(stdout, c2);
+            
+            printf("ABC ");
+        }
+        termColorBG(stdout, kTermDefault);
+        printf("\n");
+    }
+    printf("\n\n");
+    
+    termBold(stdout, true);
+    for(char c1 = kTermBlack; c1 <= kTermWhite; ++ c1) {
+        for(char c2 = kTermBlack; c2 <= kTermWhite; ++ c2) {
+            termColorFG(stdout, c1);
+            termColorBG(stdout, c2);
+            printf("ABC ");
+        }
+        termColorBG(stdout, kTermDefault);
+        printf("\n");
+    }
+    printf("\n\n");
+    
+    termBold(stdout, false);
+    termUnderline(stdout, true);
+    for(char c1 = kTermBlack; c1 <= kTermWhite; ++ c1) {
+        for(char c2 = kTermBlack; c2 <= kTermWhite; ++ c2) {
+            termColorFG(stdout, c1);
+            termColorBG(stdout, c2);
+            printf("ABC ");
+        }
+        termColorBG(stdout, kTermDefault);
+        printf("\n");
+    }
+    
     TermArgParser parser;
     termArgParserInit(&parser, argc, argv);
     
