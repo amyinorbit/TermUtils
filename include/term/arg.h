@@ -21,54 +21,49 @@
 #endif
 
 typedef enum {
-    TU_ARGRESULT_OK = 0,
-    TU_ARGRESULT_HELP = -1,
-    TU_ARGRESULT_VERSION = -2,
-    TU_ARGRESULT_NOMEM = -3,
-    TU_ARGRESULT_ERROR = -4,
-} TUResult;
+    kTermArgHelp = 'h',
+    kTermArgDone = -1,
+    kTermArgError = -2,
+    kTermArgPositional = -3,
+    kTermArgVersion = -4,
+} TermArgStatus;
 
-typedef enum { TU_ARG_VALUE, TU_ARG_OPTION, TU_ARG_POS } TUParamKind;
+typedef enum { kTermArgOption, kTermArgValue,  } TermParamKind;
+
+static const char termShortNone = '\0';
+static const char* termLongNone = NULL;
 
 typedef struct {
-    TUParamKind kind;
-    char shortName;
-    const char* name;
+    char name; /// The short option name (for example -h) or termShortNone.
+    int id; /// The id used to return this argument. If this is termShortNone, will use name.
+    const char* longName; /// A long option name (for example --help) or termLongNone.
+    TermParamKind kind;
     const char* description;
-    const char* valueDesc;
-} TUParam;
+} TermParam;
+
+typedef union {
+    int intValue;
+    float floatValue;
+    const char* stringValue;
+} TermArgValue;
 
 typedef struct {
-    char name;
-    TUParamKind kind;
-    union {
-        bool flag;
-        const char* value;
-    } as;
-} TUArg;
-
+    int name;
+    const char* value;
+} TermArgResult;
 
 typedef struct {
     const char** start;
     const char** end;
+    
+    int offset;
     bool inOptions;
-
-    int count;
-    TUParam params[TU_PARAMS_MAX];
-
+    
     char error[TU_MAX_ERROR_SIZE];
-} TUArgParser;
+} TermArgParser;
 
-void termArgParserInit(TUArgParser* parser, int argc, const char** argv);
-void termArgAddParam(TUArgParser* parser, TUParam param);
-
-void termArgAddOption(TUArgParser* parser, char name, const char* longName, const char* desc);
-void termArgAddOptionLong(TUArgParser* parser, const char* longName, const char* desc);
-void termArgAddValueLong(TUArgParser* parser, const char* longName, const char* desc,
-                         const char* value);
-
-int termArgParse(TUArgParser* parser, TUArg* args, int count);
-
-void termPrintHelp(FILE* out, const TUArgParser* parser);
+void termArgParserInit(TermArgParser* parser, int argc, const char** argv);
+TermArgResult termArgParse(TermArgParser* parser, const TermParam* options, int count);
+void termPrintHelp(FILE* out, const TermParam* options, int count);
 
 #endif

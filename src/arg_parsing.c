@@ -13,49 +13,47 @@
 #include <string.h>
 #include <term/arg.h>
 
-typedef struct {
-    TUResult status;
-    TUArg* out;
-} Result;
-
-static Result fail(TUArgParser* parser, const char* format, ...) {
+static TermArgResult fail(TermArgParser* parser, const char* format, ...) {
     va_list args;
     va_start(args, format);
     vsnprintf(parser->error, TU_MAX_ERROR_SIZE, format, args);
     va_end(args);
     fputs("\n", stderr);
-    return (Result){TU_ARGRESULT_ERROR, NULL};
+    return (TermArgResult){kTermArgError, NULL};
 }
 
-static inline Result ok(TUArg* out) {
-    return (Result){TU_ARGRESULT_OK, out};
+static inline TermArgResult ok(int name, const char* value) {
+    return (TermArgResult){name, value};
 }
 
-static inline Result bail(TUResult status, TUArg* out) {
-    return (Result){status, out};
+static inline TermArgResult bail(TermArgStatus status) {
+    return (TermArgResult){status, NULL};
 }
 
-static inline const char* eat(TUArgParser* parser) {
+static inline const char* current(TermArgParser* parser) {
+    return parser->start < parser->end ? *parser->start : NULL;
+}
+
+static inline const char* eat(TermArgParser* parser) {
+    parser->offset = 0;
     return parser->start < parser->end ? *(parser->start++) : NULL;
 }
 
-static const TUParam* argsGetShort(const TUArgParser* parser, char name) {
-    for(int i = 0; i < parser->count; ++i) {
-        if(!parser->params[i].shortName) continue;
-        if(parser->params[i].shortName == name) return &parser->params[i];
+static const TermParam* findShort(char name, const TermParam* params, int count) {
+    for(int i = 0; i < count; ++i) {
+        if(!isalnum(params[i].name)) continue;
+        if(params[i].name == name) return &params[i];
     }
     return NULL;
 }
 
-static const TUParam* argsGetLong(const TUArgParser* parser, const char* name) {
-    for(int i = 0; i < parser->count; ++i) {
-        if(!parser->params[i].name) continue;
-        if(strcmp(parser->params[i].name, name) == 0) return &parser->params[i];
+static const TermParam* findLong(const char* name, const TermParam* params, int count) {
+    for(int i = 0; i < count; ++i) {
+        if(!params[i].longName) continue;
+        if(strcmp(params[i].longName, name) == 0) return &params[i];
     }
     return NULL;
 }
-
-// static bool produce(TUArgParser* parser)
 
 static inline bool isPositional(const char* arg, size_t length) {
     return length == 1 || (arg[0] != '-');
@@ -69,88 +67,81 @@ static inline bool isLong(const char* arg, size_t length) {
     return length >= 3 && arg[0] == '-' && arg[1] == '-' && isalpha(arg[2]);
 }
 
-static Result finishValue(TUArgParser* parser, const TUParam* param, TUArg* out, const TUArg* end) {
-    assert(param->kind == TU_ARG_VALUE);
+static inline int id(const TermParam* param) {
+    return isalnum(param->name) ? param->name : param->id;
+}
+
+static TermArgResult finishValue(TermArgParser* parser, const TermParam* param) {
+    assert(param->kind == kTermArgValue);
 
     const char* value = eat(parser);
-    if(!value) return fail(parser, "argument '-%c' requires a value", param->shortName);
-    if(out == end) return bail(TU_ARGRESULT_NOMEM, out);
-
-    out->name = param->shortName;
-    out->kind = TU_ARG_VALUE;
-    out->as.value = value;
-    return ok(++out);
+    if(!value) return fail(parser, "argument '-%c' requires a value", param->name);
+    
+    return ok(id(param), value);
 }
 
-static Result shortArg(TUArgParser* parser, const char* arg, TUArg* out, const TUArg* end) {
-    const char* argEnd = arg + strlen(arg);
-    bool canHaveValue = strlen(arg) == 1;
+static TermArgResult finishValueLong(TermArgParser* parser, const char* arg, const TermParam* param) {
+    assert(param->kind == kTermArgValue);
 
-    while(arg != argEnd) {
-        char flag = *(arg++);
-        if(flag == 'h') return bail(TU_ARGRESULT_HELP, out);
+    const char* value = eat(parser);
+    if(!value) return fail(parser, "argument '--%s' requires a value", arg);
+    
+    return ok(id(param), value);
+}
 
-        const TUParam* param = argsGetShort(parser, flag);
-        if(!param) return fail(parser, "unknown argument: '-%c'", flag);
-        if(param->kind == TU_ARG_VALUE && !canHaveValue)
-            return fail(parser, "argument '-%c' requires a value", param->shortName);
-        if(param->kind == TU_ARG_VALUE) return finishValue(parser, param, out, end);
 
-        if(out == end) return bail(TU_ARGRESULT_NOMEM, out);
-        out->name = flag;
-        out->kind = TU_ARG_OPTION;
-        out++;
+static TermArgResult shortArg(TermArgParser* parser, const TermParam* options, int count) {
+    const char* list = current(parser) + 1;
+    const char* listEnd = list + strlen(list);
+    bool canHaveValue = strlen(list) == 1;
+    
+    char flag = *(list + parser->offset++);
+    if(flag == 'h') return bail(kTermArgHelp);
+    
+    const TermParam* param = findShort(flag, options, count);
+    if(!param) return fail(parser, "unknown argument: '-%c'", flag);
+    
+    if(param->kind == kTermArgOption) {
+        if((list + parser->offset) >= listEnd) eat(parser);
+        return ok(id(param), NULL);
     }
-    return ok(out);
+    
+    if(!canHaveValue) return fail(parser, "argument '-%c' requires a value", param->name);
+    return finishValue(parser, param);
 }
 
-static Result longArg(TUArgParser* parser, const char* arg, TUArg* out, const TUArg* end) {
-    if(strcmp(arg, "help") == 0) return bail(TU_ARGRESULT_HELP, out);
-    if(strcmp(arg, "version") == 0) return bail(TU_ARGRESULT_VERSION, out);
-
-    const TUParam* param = argsGetLong(parser, arg);
+static TermArgResult longArg(TermArgParser* parser, const TermParam* options, int count) {
+    const char* arg = eat(parser) + 2; // skip the 
+    if(strcmp(arg, "help") == 0) return bail(kTermArgHelp);
+    if(strcmp(arg, "version") == 0) return bail(kTermArgVersion);
+    
+    const TermParam* param = findLong(arg, options, count);
     if(!param) return fail(parser, "unknown argument: '--%s'", arg);
-
-    if(param->kind == TU_ARG_VALUE) return finishValue(parser, param, out, end);
-
-    assert(param->kind == TU_ARG_OPTION);
-    if(out == end) return bail(TU_ARGRESULT_NOMEM, out);
-    out->name = param->shortName;
-    out->kind = TU_ARG_OPTION;
-    return ok(++out);
+    
+    if(param->kind == kTermArgValue) return finishValueLong(parser, arg, param);
+    return ok(id(param), NULL);
 }
 
-static Result positionalArg(TUArgParser* parser, const char* arg, TUArg* out, const TUArg* end) {
-    if(out == end) return bail(TU_ARGRESULT_NOMEM, out);
-    out->kind = TU_ARG_POS;
-    out->as.value = arg;
-    return ok(++out);
+static TermArgResult positionalArg(TermArgParser* parser) {
+    return ok(kTermArgPositional, eat(parser));
 }
 
-int termArgParse(TUArgParser* parser, TUArg* args, int count) {
-    TUArg* out = args;
-    const TUArg* end = args + count;
-    while(parser->start != parser->end) {
-        const char* arg = eat(parser);
-        size_t length = strlen(arg);
 
-        // printf("arg: %s > ", arg);
-
-        if(strcmp(arg, "--") == 0) {
-            parser->inOptions = false;
-            continue;
-        }
-
-        Result r;
-        if(isPositional(arg, length))
-            r = positionalArg(parser, arg + 1, out, end);
-        else if(isShort(arg, length))
-            r = shortArg(parser, arg + 1, out, end);
-        else if(isLong(arg, length))
-            r = longArg(parser, arg + 2, out, end);
-
-        if(r.status < 0) return r.status;
-        out = r.out;
+TermArgResult termArgParse(TermArgParser* parser, const TermParam* options, int count) {
+    const char* arg = current(parser);
+    if(!arg) return bail(kTermArgDone);
+    size_t length = strlen(arg);
+    
+    if(strcmp(arg, "--") == 0) {
+        parser->inOptions = false;
+        eat(parser);
+        arg = current(parser);
+        if(!arg) return bail(kTermArgDone);
+        length = strlen(arg);
     }
-    return out - args;
+    
+    if(!parser->inOptions || isPositional(arg, length)) return positionalArg(parser);
+    if(isShort(arg, length)) return shortArg(parser, options, count);
+    if(isLong(arg, length)) return longArg(parser, options, count);
+    return bail(kTermArgDone);
 }

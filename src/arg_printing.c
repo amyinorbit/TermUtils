@@ -10,22 +10,18 @@
 #include <string.h>
 #include <term/arg.h>
 
-void termPrintHelp(FILE* out, const TUArgParser* parser) {
+void termPrintHelp(FILE* out, const TermParam* params, int count) {
     printf("Options\n");
 
-    for(int i = 0; i < parser->count; ++i) {
-        TUParam param = parser->params[i];
-        if(param.kind == TU_ARG_POS) continue;
-        if(param.shortName)
-            fprintf(out, " -%c,", param.shortName);
+    for(int i = 0; i < count; ++i) {
+        TermParam param = params[i];
+        if(param.name)
+            fprintf(out, " -%c,", param.name);
         else
             fprintf(out, "    ");
 
-        if(param.name && param.kind == TU_ARG_VALUE) {
-            fprintf(out, " --%s ", param.name);
-            fprintf(out, "%-*s", (int)(21 - strlen(param.name)), param.valueDesc);
-        } else if(param.name) {
-            fprintf(out, " --%-22s", param.name);
+        if(param.longName) {
+            fprintf(out, " --%-22s", param.longName);
         } else {
             fprintf(out, "                          ");
         }
