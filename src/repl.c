@@ -181,6 +181,7 @@ const char* termREPL(const char* prompt, TermREPL* repl) {
             }
             continue;
         }
+        bufferInsert(&buffer, start + cursor++, c);
         
         if(c == '\n' && braceCount == 0 && parenCount == 0) {
             putchar('\n');
@@ -204,7 +205,6 @@ const char* termREPL(const char* prompt, TermREPL* repl) {
         
         historyIndex = historyLength(repl);
         
-        bufferInsert(&buffer, start + cursor++, c);
         if(c == '\n') {
             start += cursor;
             cursor = 0;
