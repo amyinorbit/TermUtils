@@ -139,7 +139,6 @@ const char* termREPL(TermREPL* repl) {
     
     for(;;) {
         int c = getch();
-        printf("0x%02x\n", c);
         
         if(c == 127) {
             if(cursor <= 0) continue;
