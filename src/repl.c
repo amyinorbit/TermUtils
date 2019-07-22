@@ -102,8 +102,10 @@ static inline int historyLength(const TermREPL* repl) {
     return size;
 }
 
-void termREPLInit(TermREPL* repl) {
+void termREPLInit(TermREPL* repl, const char* prompt, TermColor promptColor) {
     assert(repl && "cannot initialise a null REPL");
+    repl->prompt = prompt;
+    repl->promptColor = promptColor;
     for(int i = 0; i < TERM_MAX_HISTORY; ++i) {
         repl->history[i] = NULL;
     }
@@ -118,7 +120,7 @@ void termREPLDeinit(TermREPL* repl) {
     }
 }
 
-const char* termREPL(const char* prompt, TermREPL* repl) {
+const char* termREPL(TermREPL* repl) {
     
     Buffer buffer;
     bufferInit(&buffer);
@@ -130,11 +132,14 @@ const char* termREPL(const char* prompt, TermREPL* repl) {
     int cursor = 0;
     int braceCount = 0;
     int parenCount = 0;
-    int promptLength = strlen(prompt);
-    printf("%s", prompt);
+    int promptLength = strlen(repl->prompt);
+    termColorFG(stdout, repl->promptColor);
+    printf("%s", repl->prompt);
+    termColorFG(stdout, kTermDefault);
     
     for(;;) {
         int c = getch();
+        printf("0x%02x\n", c);
         
         if(c == 127) {
             if(cursor <= 0) continue;
@@ -143,6 +148,10 @@ const char* termREPL(const char* prompt, TermREPL* repl) {
             printf("%s", buffer.data + start);
             goBack(buffer.count - (cursor + start));
             continue;
+        }
+        
+        if(c == 0x04) {
+            return NULL;
         }
         
         if(c == 27 && getch() == 91) {
@@ -208,7 +217,9 @@ const char* termREPL(const char* prompt, TermREPL* repl) {
         if(c == '\n') {
             start += cursor;
             cursor = 0;
+            termColorFG(stdout, repl->promptColor);
             printf("\n%-*s", promptLength, "...");
+            termColorFG(stdout, kTermDefault);
         } else {
             erase(buffer.count, cursor-1);
         }
