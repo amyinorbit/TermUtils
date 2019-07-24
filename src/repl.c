@@ -189,7 +189,6 @@ const char* termREPL(TermREPL* repl) {
             }
             continue;
         }
-        bufferInsert(&buffer, start + cursor++, c);
         
         if(c == '\n' && braceCount == 0 && parenCount == 0) {
             putchar('\n');
@@ -203,6 +202,8 @@ const char* termREPL(TermREPL* repl) {
             }
             return buffer.data;
         }
+        
+        bufferInsert(&buffer, start + cursor++, c);
         
         if(c == '(') parenCount += 1;
         if(c == ')') parenCount -= 1;
