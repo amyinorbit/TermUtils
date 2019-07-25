@@ -42,10 +42,10 @@ void termEditorDeinit(Editor* e);
 
 char* termEditorFlush(Editor* e);
 
-// void termEditorLeft(TermEditor* e);
-// void termEditorRight(TermEditor* e);
-// void termEditorUp(TermEditor* e);
-// void termEditorDown(TermEditor* e);
+void termEditorLeft(Editor* e);
+void termEditorRight(Editor* e);
+void termEditorUp(Editor* e);
+void termEditorDown(Editor* e);
 
 void termEditorRender(Editor* e);
 bool termEditorUpdate(Editor* e);

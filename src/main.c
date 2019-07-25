@@ -19,7 +19,7 @@ int main(int argc, const char** argv) {
     // termREPLDeinit(&repl);
     
     Editor editor;
-    termEditorInit(&editor, "repl > ");
+    termEditorInit(&editor, "repl");
     
     do {
         termEditorRender(&editor);
