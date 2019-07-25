@@ -8,82 +8,12 @@
 // =^•.•^=
 //===--------------------------------------------------------------------------------------------===
 #include "editor.h"
+#include "shims.h"
 #include <term/colors.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-
-#ifdef _WIN32
-#include <conio.h>
-
-#define getch _getch
-
-#else
-#include <termios.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-
-#define BUFFER_DEFAULT_CAPACITY 512
-
-static inline int getch(void) {
-    struct termios oldt, newt;
-	int ch;
-	tcgetattr(STDIN_FILENO, &oldt);
-	newt = oldt;
-	newt.c_lflag &= ~(ICANON | ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-	ch = getchar();
-	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-	return ch;
-}
-#endif
-
-static inline int tcols(void) {
-#ifdef _WIN32
-	CONSOLE_SCREEN_BUFFER_INFO csbi;
-	if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
-		return -1;
-	else
-		return csbi.srWindow.Right - csbi.srWindow.Left + 1; // Window width
-		// return csbi.dwSize.X; // Buffer width
-#else
-#ifdef TIOCGSIZE
-	struct ttysize ts;
-	ioctl(STDIN_FILENO, TIOCGSIZE, &ts);
-	return ts.ts_cols;
-#elif defined(TIOCGWINSZ)
-	struct winsize ts;
-	ioctl(STDIN_FILENO, TIOCGWINSZ, &ts);
-	return ts.ws_col;
-#else // TIOCGSIZE
-	return -1;
-#endif // TIOCGSIZE
-#endif // _WIN32
-}
-
-static inline int trows(void) {
-#ifdef _WIN32
-	CONSOLE_SCREEN_BUFFER_INFO csbi;
-	if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
-		return -1;
-	else
-		return csbi.srWindow.Right - csbi.srWindow.Left + 1; // Window width
-		// return csbi.dwSize.X; // Buffer width
-#else
-#ifdef TIOCGSIZE
-	struct ttysize ts;
-	ioctl(STDIN_FILENO, TIOCGSIZE, &ts);
-	return ts.ts_lines;
-#elif defined(TIOCGWINSZ)
-	struct winsize ts;
-	ioctl(STDIN_FILENO, TIOCGWINSZ, &ts);
-	return ts.ws_row;
-#else // TIOCGSIZE
-	return -1;
-#endif // TIOCGSIZE
-#endif // _WIN32
-}
 
 static inline int max(int a, int b) { return a > b ? a : b; }
 static inline int min(int a, int b) { return a < b ? a : b; }
@@ -176,7 +106,8 @@ static void editorInsert(Editor* e, char c) {
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
 static void editorNewline(Editor* e) {
     if(e->cursor.x) printf("\033[%dD", e->cursor.x);
-    printf("\033[1B");
+    //printf("\033[1B");
+    putchar('\n');
     
     assert(e->lineCount < TERM_EDITOR_MAX_LINES);
     
@@ -227,7 +158,7 @@ void termEditorInit(Editor* e, const char* prompt) {
     e->offset = (Coords){0, 0};
     
     e->prompt = prompt;
-    e->promptLength = strlen(prompt) + 3; // to account for " > "
+    e->promptLength = strlen(prompt);
     
     e->lineCount = 1;
     for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i)
@@ -287,11 +218,9 @@ static void keepInViewX(Editor* e) {
     
 }
 
-void termEditorRender(Editor* e) {
-    
+static void termEditorCLS(Editor* e) {
     int nx = tcols();
     int ny = min(trows(), 10);
-    
     
     Coords screen = (Coords){
         e->promptLength + e->cursor.x,
@@ -312,18 +241,52 @@ void termEditorRender(Editor* e) {
     
     if(current.x > 0) printf("\033[%dD", current.x);
     if(current.y > 0) printf("\033[%dA", current.y);
+}
 
-    current.x = 0;
-    current.y = 0;
+// TODO: this isn't really the nicest way to do things, we could probably memcpy a lot of this.
+void termEditorReplace(Editor* e, const char* data) {
+    termEditorClear(e);
+    while(*data) {
+        char c = *data++;
+        if(c == '\n') editorNewline(e);
+        else editorInsert(e, c);
+    }
+}
+
+void termEditorClear(Editor* e) {
+    termEditorCLS(e);
+    e->cursor.x = 0;
+    e->cursor.y = 0;
+    e->offset.x = 0;
+    e->offset.y = 0;
+    
+    for(int i = 0; i < e->lineCount; ++i) {
+        e->lines[i].count = 0;
+    }
+    e->lineCount = 1;
+}
+
+void termEditorRender(Editor* e) {
+    
+    int nx = tcols();
+    int ny = min(trows(), 10);
+    
+    Coords screen = (Coords){
+            e->promptLength + e->cursor.x,
+            e->cursor.y - e->offset.y
+        };
+    Coords current = (Coords){0, 0};
+    
+    termEditorCLS(e);
     
     // the simple bit: we print the lines!
     for(int i = e->offset.y; i < min(e->lineCount, ny); ++i) {
         current.x = 0;
         termColorFG(stdout, kTermBlue);
         if(i)
-            current.x += printf("%-*s > ", e->promptLength-3, "...");
+            current.x += printf("%-*s", e->promptLength, " ");
         else
-            current.x += printf("%s > ", e->prompt);
+            current.x += printf("%s", e->prompt);
         termColorFG(stdout, kTermDefault);
         
         EditorLine line = e->lines[i];
@@ -355,7 +318,6 @@ void termEditorRight(Editor* e) {
 }
 
 void termEditorUp(Editor* e) {
-    if(e->cursor.y <= 0) return;
     e->cursor.y -= 1;
     printf("\033[1A");
     
@@ -366,7 +328,6 @@ void termEditorUp(Editor* e) {
 }
 
 void termEditorDown(Editor* e) {
-    if(e->cursor.y >= e->lineCount - 1) return;
     e->cursor.y += 1;
     printf("\033[1B");
     
@@ -376,54 +337,60 @@ void termEditorDown(Editor* e) {
     e->cursor.x = max;
 }
 
-static void processEscape(Editor* e) {
-    if(getch() != 91) return;
+static EditorStatus processEscape(Editor* e) {
+    if(getch() != 91) return kTermEditorOK;
     switch(getch()) {
         
     case 65:
+        if(e->cursor.y + e->offset.y == 0) return kTermEditorTop;
         termEditorUp(e);
-        break;
+        return kTermEditorOK;
         
     case 66:
+        if(e->cursor.y + e->offset.y == e->lineCount - 1) return kTermEditorBottom;
         termEditorDown(e);
-        break;
+        return kTermEditorOK;
         
     // right arrow
     case 67:
         termEditorRight(e);
-        break;
+        return kTermEditorOK;
         
     // left arrow
     case 68:
         termEditorLeft(e);
-        break;
+        return kTermEditorOK;
     }
+    return kTermEditorOK;
 }
 
-bool termEditorUpdate(Editor* e) {
-    int c = getch();
+EditorStatus termEditorUpdate(Editor* e, char c) {
+    EditorStatus status = kTermEditorOK;
+    
     switch(c) {
     case '\n':
         editorNewline(e);
+        status = kTermEditorReturn;
         break;
         
-    case 127:
+    case 0x7f:
         editorBackspace(e);
+        status = kTermEditorOK;
         break;
         
     case 0x04:
-        return false;
-        break;
+        return kTermEditorDone;
         
-    case 27:
-        processEscape(e);
+    case 0x1b:
+        status = processEscape(e);
         break;
         
     default:
         editorInsert(e, c);
+        status = kTermEditorOK;
         break;
     }
     keepInViewX(e);
-    return true;
+    return status;
 }
 

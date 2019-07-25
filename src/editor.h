@@ -16,6 +16,14 @@
 #define TERM_EDITOR_MAX_LINES 64
 #endif
 
+typedef enum {
+    kTermEditorDone,
+    kTermEditorOK,
+    kTermEditorTop,
+    kTermEditorBottom,
+    kTermEditorReturn,
+} EditorStatus;
+
 typedef struct EditorLine {
     int count;
     int capacity;
@@ -47,8 +55,10 @@ void termEditorRight(Editor* e);
 void termEditorUp(Editor* e);
 void termEditorDown(Editor* e);
 
+void termEditorReplace(Editor* e, const char* data);
+void termEditorClear(Editor* e);
 void termEditorRender(Editor* e);
-bool termEditorUpdate(Editor* e);
+EditorStatus termEditorUpdate(Editor* e, char c);
 
 
 #endif
