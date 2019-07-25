@@ -98,13 +98,14 @@ char* termREPL(TermREPL* repl) {
             }
             if(parens || braces) break;
             
-            output = strip(termEditorFlush(&editor));
+            output = termEditorFlush(&editor);
             int length = strlen(output);
             
             memmove(repl->history+1, repl->history, (TERM_MAX_HISTORY-1) * sizeof(char*));
             repl->history[0] = malloc((1 + length) * sizeof(char));
             memcpy(repl->history[0], output, length);
             repl->history[0][length] = '\0';
+            strip(repl->history[0]);
             
             repl->historyCount += 1;
             if(repl->historyCount > TERM_MAX_HISTORY) repl->historyCount = TERM_MAX_HISTORY;
