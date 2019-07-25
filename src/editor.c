@@ -108,13 +108,61 @@ static void editorEnsureLine(EditorLine* line, int count) {
 
 static void editorBackspace(Editor* e) {
     
+    int x = e->offset.x + e->cursor.x;
+    int y = e->offset.y + e->cursor.y;
+    
+    EditorLine* line = &e->lines[y];
+    if(x > 0) {
+        memmove(&line->data[x-1], &line->data[x], line->count - x);
+        line->count -= 1;
+        line->data[line->count] = '\0';
+    
+        printf("\033[1D");
+        e->cursor.x -= 1;
+        return;
+    }
+    
+    // Tricky here, we need to potentially do some line merging
+    if(y == 0) return;
+    
+    EditorLine* above = &e->lines[y-1];
+    
+    // We save the jump the cursor will have to make
+    int dx = above->count;
+    
+    // TODO: we can optimize this pretty well if the line above is empty!
+    editorEnsureLine(above, above->count + line->count + 1);
+    memcpy(&above->data[above->count], line->data, line->count);
+    above->count += line->count;
+    above->data[above->count] = '\0';
+    
+    // Then we deinit that line
+    editorDeinitLine(e, y);
+    e->lineCount -= 1;
+    
+    // Then we move lines down
+    for(int i = y; i < e->lineCount; ++i) {
+        e->lines[i].count = e->lines[i-1].count;
+        e->lines[i].capacity = e->lines[i-1].capacity;
+        e->lines[i].data = e->lines[i-1].data;
+    }
+    editorInitLine(e, e->lineCount);
+    
+    // And finally we move the cursor!
+    if(dx) printf("\033[%dC", dx);
+    printf("\033[1A");
+    
+    e->cursor.x += dx;
+    e->cursor.y -= 1;
 }
 
 static void editorInsert(Editor* e, char c) {
-    // putchar(c);
-    printf("\033[1C");
+    
     int x = e->offset.x + e->cursor.x;
     int y = e->offset.y + e->cursor.y;
+    
+    printf("\033[1C");
+    e->cursor.x += 1;
 
     EditorLine* line = &e->lines[y];
     editorEnsureLine(line, line->count + 2);
@@ -123,7 +171,6 @@ static void editorInsert(Editor* e, char c) {
     line->count += 1;
     line->data[x] = c;
     line->data[line->count] = '\0';
-    e->cursor.x += 1;
 }
 
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
@@ -163,7 +210,7 @@ static void editorNewline(Editor* e) {
     }
 
     currentLine->count = x;
-    currentLine->data[x] = '\0';
+    if(currentLine->capacity) currentLine->data[x] = '\0';
 }
 
 
@@ -257,7 +304,7 @@ void termEditorRender(Editor* e) {
     if(screen.x > 0) printf("\033[%dD", screen.x);
     if(screen.y > 0) printf("\033[%dA", screen.y);
     
-    for(int i = e->offset.y; i < min(e->lineCount, ny); ++i) {
+    for(int i = e->offset.y; i < min(e->lineCount + 1, ny); ++i) {
         for(int i = 0; i < nx; ++i) putchar(' ');
         putchar('\n');
         current.y += 1;
@@ -358,6 +405,10 @@ bool termEditorUpdate(Editor* e) {
     switch(c) {
     case '\n':
         editorNewline(e);
+        break;
+        
+    case 127:
+        editorBackspace(e);
         break;
         
     case 0x04:
