@@ -23,32 +23,36 @@ static inline void moveLineStart(Editor* e) {
     e->cursor.x = 0;
 }
 
+static inline void termUp(int n) { if(n) printf("\033[%dA", n); }
+static inline void termDown(int n) { if(n) printf("\033[%dB", n); }
+static inline void termRight(int n) { if(n) printf("\033[%dC", n); }
+static inline void termLeft(int n) { if(n) printf("\033[%dD", n); }
+
 static inline void moveNextLine(Editor* e) {
-    printf("\033[1B");
+    termDown(1);
     e->cursor.y += 1;
     moveLineStart(e);
 }
 
 static inline void up(Editor* e, int n) {
+    termUp(n);
     e->cursor.y -= n;
-    printf("\033[%dA", n);
 }
 
 static inline void down(Editor* e, int n) {
+    termDown(n);
     e->cursor.y += n;
-    printf("\033[%dB", n);
 }
 
 static inline void right(Editor* e, int n) {
-    if(!n) return;
+    termRight(n);
     e->cursor.x += n;
-    printf("\033[%dC", n);
 }
 
 static inline void left(Editor* e, int n) {
-    if(!e->cursor.x || !n) return;
+    if(!e->cursor.x) return;
+    termLeft(n);
     e->cursor.x -= n;
-    printf("\033[%dD", n);
 }
 
 static void ensureBuffer(Editor* e, int count) {
@@ -125,9 +129,7 @@ static void editorInsert(Editor* e, char c) {
     // (and count for the current line)
     line->count += 1;
     
-    for(int i = y+1; i < e->lineCount; ++i) {
-        e->lines[i].offset += 1; // +1 for linefeed
-    }
+    for(int i = y+1; i < e->lineCount; ++i) e->lines[i].offset += 1;
 }
 
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
@@ -193,9 +195,7 @@ static void scrollLeft(Editor* e, int over) {
     dist = min(dist, e->offset.x);
     
     e->offset.x -= dist;
-    e->cursor.x += dist;
-    
-    printf("\033[%dC", dist);
+    right(e, dist);
 }
 
 static void scrollRight(Editor* e, int over) {
@@ -203,9 +203,7 @@ static void scrollRight(Editor* e, int over) {
     while(dist < over) dist += 20;
     
     e->offset.x += dist;
-    e->cursor.x -= dist;
-    
-    printf("\033[%dD", dist);
+    left(e, dist);
 }
 
 static void keepInViewX(Editor* e) {
@@ -231,8 +229,8 @@ static void termEditorCLS(Editor* e) {
     
     Coords current = (Coords){0, 0};
     
-    if(screen.x > 0) printf("\033[%dD", screen.x);
-    if(screen.y > 0) printf("\033[%dA", screen.y);
+    termLeft(screen.x);
+    termUp(screen.y);
     
     for(int i = e->offset.y; i < min(e->lineCount + 1, ny); ++i) {
         for(int i = 0; i < nx; ++i) putchar(' ');
@@ -240,8 +238,8 @@ static void termEditorCLS(Editor* e) {
         current.y += 1;
     }
     
-    if(current.x > 0) printf("\033[%dD", current.x);
-    if(current.y > 0) printf("\033[%dA", current.y);
+    termLeft(current.x);
+    termUp(current.y);
 }
 
 // TODO: this isn't really the nicest way to do things, we could probably memcpy a lot of this.
@@ -291,44 +289,38 @@ void termEditorRender(Editor* e) {
         putchar('\n');
         current.y += 1;
     }
-
-    if(current.x > 0) printf("\033[%dD", current.x);
-    if(current.y > 0) printf("\033[%dA", current.y);
-
-    if(screen.x > 0) printf("\033[%dC", screen.x);
-    if(screen.y > 0) printf("\033[%dB", screen.y);
+    
+    termLeft(current.x);
+    termUp(current.y);
+    
+    termRight(screen.x);
+    termDown(screen.y);
 }
 
 void termEditorLeft(Editor* e) {
     if(e->cursor.x <= 0) return;
-    e->cursor.x -= 1;
-    printf("\033[1D");
+    left(e, 1);
 }
 
 void termEditorRight(Editor* e) {
     if(e->cursor.x + e->offset.x >= e->lines[e->cursor.y].count) return;
-    e->cursor.x += 1;
-    printf("\033[1C");
+    right(e, 1);
 }
 
 void termEditorUp(Editor* e) {
-    e->cursor.y -= 1;
-    printf("\033[1A");
+    up(e, 1);
     
     int max = e->lines[e->cursor.y].count;
     if(e->cursor.x <= max) return;
-    printf("\033[%dD", e->cursor.x - max);
-    e->cursor.x = max;
+    left(e, e->cursor.x - max);
 }
 
 void termEditorDown(Editor* e) {
-    e->cursor.y += 1;
-    printf("\033[1B");
+    down(e, 1);
     
     int max = e->lines[e->cursor.y].count;
     if(e->cursor.x <= max) return;
-    printf("\033[%dD", e->cursor.x - max);
-    e->cursor.x = max;
+    left(e, e->cursor.x - max);
 }
 
 static EditorStatus processEscape(Editor* e) {
