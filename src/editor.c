@@ -284,7 +284,7 @@ void termEditorRender(Editor* e) {
         current.x = 0;
         termColorFG(stdout, kTermBlue);
         if(i)
-            current.x += printf("%-*s", e->promptLength, " ");
+            current.x += printf("%*s", e->promptLength, "| ");
         else
             current.x += printf("%s", e->prompt);
         termColorFG(stdout, kTermDefault);
