@@ -14,10 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void termREPLInit(TermREPL* repl, const char* prompt, TermColor promptColor) {
+void termREPLInit(TermREPL* repl) {
     assert(repl && "cannot initialise a null REPL");
-    repl->prompt = prompt;
-    repl->promptColor = promptColor;
     repl->historyCount = 0;
     for(int i = 0; i < TERM_MAX_HISTORY; ++i) {
         repl->history[i] = NULL;
@@ -45,12 +43,14 @@ static char* strip(char* data) {
     return data;
 }
 
-char* termREPL(TermREPL* repl) {
+char* termREPL(TermREPL* repl, const char* prompt) {
     
     int historyIndex = -1;
     
     Editor editor;
     termEditorInit(&editor);
+    editor.prompt = prompt;
+    editor.promptLength = strlen(prompt);
     
     EditorStatus status;
     int braces = 0;
@@ -118,5 +118,6 @@ char* termREPL(TermREPL* repl) {
     
     cleanup:
     termEditorDeinit(&editor);
+    fflush(stdout);
     return output;
 }

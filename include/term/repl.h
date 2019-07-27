@@ -18,15 +18,13 @@
 #endif
 
 typedef struct TermREPL {
-    const char* prompt;
-    TermColor promptColor;
     int historyCount;
     char* history[TERM_MAX_HISTORY];
 } TermREPL;
 
-void termREPLInit(TermREPL* repl, const char* prompt, TermColor promptColor);
+void termREPLInit(TermREPL* repl);
 void termREPLDeinit(TermREPL* repl);
 
-char* termREPL(TermREPL* repl);
+char* termREPL(TermREPL* repl, const char* prompt);
 
 #endif

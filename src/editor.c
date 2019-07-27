@@ -17,22 +17,10 @@
 
 static inline int min(int a, int b) { return a < b ? a : b; }
 
-static inline void moveLineStart(Editor* e) {
-    if(!e->cursor.x) return;
-    printf("\033[%dD", e->cursor.x);
-    e->cursor.x = 0;
-}
-
 static inline void termUp(int n) { if(n) printf("\033[%dA", n); }
 static inline void termDown(int n) { if(n) printf("\033[%dB", n); }
 static inline void termRight(int n) { if(n) printf("\033[%dC", n); }
 static inline void termLeft(int n) { if(n) printf("\033[%dD", n); }
-
-static inline void moveNextLine(Editor* e) {
-    termDown(1);
-    e->cursor.y += 1;
-    moveLineStart(e);
-}
 
 static inline void up(Editor* e, int n) {
     termUp(n);
@@ -153,7 +141,7 @@ static void editorNewline(Editor* e) {
     }
     e->lines[y+1] = next;
     e->lineCount += 1;
-    moveNextLine(e);
+    putchar('\n');
 }
 
 // MARK: - "public" API
@@ -215,7 +203,6 @@ static void keepInViewX(Editor* e) {
     } else if(e->offset.x && e->cursor.x < minX) {
         scrollLeft(e, minX - e->cursor.x);
     }
-    
 }
 
 static void termEditorCLS(Editor* e) {
@@ -240,6 +227,7 @@ static void termEditorCLS(Editor* e) {
     
     termLeft(current.x);
     termUp(current.y);
+    fflush(stdout);
 }
 
 // TODO: this isn't really the nicest way to do things, we could probably memcpy a lot of this.
@@ -262,6 +250,7 @@ void termEditorClear(Editor* e) {
     for(int i = 0; i < e->lineCount; ++i) {
         e->lines[i].count = 0;
     }
+    e->count = 0;
     e->lineCount = 1;
 }
 
@@ -271,9 +260,9 @@ void termEditorRender(Editor* e) {
     int ny = min(trows(), 10);
     
     Coords screen = (Coords){
-            e->promptLength + e->cursor.x,
-            e->cursor.y - e->offset.y
-        };
+        e->promptLength + e->cursor.x,
+        e->cursor.y - e->offset.y
+    };
     Coords current = (Coords){0, 0};
     
     termEditorCLS(e);
@@ -281,6 +270,12 @@ void termEditorRender(Editor* e) {
     // the simple bit: we print the lines!
     for(int i = e->offset.y; i < min(e->lineCount, ny); ++i) {
         current.x = 0;
+        
+        termColorFG(stdout, kTermBlue);
+        if(i) current.x += printf("%*s", e->promptLength, "... ");
+        else current.x += printf("%s", e->prompt);
+        termColorFG(stdout, kTermDefault);
+        
         EditorLine line = e->lines[i];
         if(line.count) {
             printf("%.*s", min(line.count, nx - e->promptLength),
@@ -295,6 +290,7 @@ void termEditorRender(Editor* e) {
     
     termRight(screen.x);
     termDown(screen.y);
+    fflush(stdout);
 }
 
 void termEditorLeft(Editor* e) {
