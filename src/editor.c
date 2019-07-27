@@ -15,174 +15,134 @@
 #include <stdlib.h>
 #include <assert.h>
 
-static inline int max(int a, int b) { return a > b ? a : b; }
 static inline int min(int a, int b) { return a < b ? a : b; }
 
-static void editorInitLine(Editor* e, int i) {
-    e->lines[i].count = 0;
-    e->lines[i].capacity = 0;
-    e->lines[i].data = NULL;
+static inline void moveLineStart(Editor* e) {
+    if(!e->cursor.x) return;
+    printf("\033[%dD", e->cursor.x);
+    e->cursor.x = 0;
 }
 
-static void editorDeinitLine(Editor* e, int i) {
-    if(e->lines[i].data) free(e->lines[i].data);
-    editorInitLine(e, i);
+static inline void moveNextLine(Editor* e) {
+    printf("\033[1B");
+    e->cursor.y += 1;
+    moveLineStart(e);
 }
 
-static void editorEnsureLine(EditorLine* line, int count) {
-    if(line->capacity > count) return;
-    while(count > line->capacity)
-        line->capacity = line->capacity ? line->capacity * 2 : 32;
-    line->data = realloc(line->data, line->capacity * sizeof(char));
+static inline void right(Editor* e) {
+    e->cursor.x += 1;
+    printf("\033[1C");
+}
+
+static inline void left(Editor* e) {
+    if(!e->cursor.x) return;
+    e->cursor.x -= 1;
+    printf("\033[1D");
+}
+
+static void ensureBuffer(Editor* e, int count) {
+    count += 1; // To account for the trailing \0
+    if(count <= e->capacity) return;
+    while(e->capacity < count)
+        e->capacity = e->capacity ? e->capacity * 2 : 256;
+    e->buffer = realloc(e->buffer, e->capacity * sizeof(char));
+}
+
+static inline void insert(Editor* e, int offset, char c) {
+    assert(offset <= e->count && "Invalid insertion offset");
+    ensureBuffer(e, e->count + 1);
+    int moveCount = e->count - offset;
+    memmove(&e->buffer[offset+1], &e->buffer[offset], moveCount * sizeof(char));
+    e->buffer[offset] = c;
+    e->count += 1;
+    e->buffer[e->count] = '\0';
+}
+
+static inline void erase(Editor* e, int offset) {
+    assert(offset <= e->count && "Invalid insertion offset");
+    int moveCount = e->count - (offset + 1);
+    memmove(&e->buffer[offset], &e->buffer[offset+1], moveCount * sizeof(char));
+    e->count -= 1;
+    e->buffer[e->count] = '\0';
 }
 
 static void editorBackspace(Editor* e) {
-    
-    int x = e->offset.x + e->cursor.x;
-    int y = e->offset.y + e->cursor.y;
-    
-    EditorLine* line = &e->lines[y];
-    if(x > 0) {
-        memmove(&line->data[x-1], &line->data[x], line->count - x);
-        line->count -= 1;
-        line->data[line->count] = '\0';
-    
-        printf("\033[1D");
-        e->cursor.x -= 1;
-        return;
-    }
-    
-    // Tricky here, we need to potentially do some line merging
-    if(y == 0) return;
-    
-    EditorLine* above = &e->lines[y-1];
-    
-    // We save the jump the cursor will have to make
-    int dx = above->count;
-    
-    // TODO: we can optimize this pretty well if the line above is empty!
-    editorEnsureLine(above, above->count + line->count + 1);
-    memcpy(&above->data[above->count], line->data, line->count);
-    above->count += line->count;
-    above->data[above->count] = '\0';
-    
-    // Then we deinit that line
-    editorDeinitLine(e, y);
-    e->lineCount -= 1;
-    
-    // Then we move lines down
-    for(int i = y; i < e->lineCount; ++i) {
-        e->lines[i].count = e->lines[i-1].count;
-        e->lines[i].capacity = e->lines[i-1].capacity;
-        e->lines[i].data = e->lines[i-1].data;
-    }
-    editorInitLine(e, e->lineCount);
-    
-    // And finally we move the cursor!
-    if(dx) printf("\033[%dC", dx);
-    printf("\033[1A");
-    
-    e->cursor.x += dx;
-    e->cursor.y -= 1;
+    // TODO: implementation
 }
 
 static void editorInsert(Editor* e, char c) {
-    
     int x = e->offset.x + e->cursor.x;
     int y = e->offset.y + e->cursor.y;
     
-    printf("\033[1C");
-    e->cursor.x += 1;
-
     EditorLine* line = &e->lines[y];
-    editorEnsureLine(line, line->count + 2);
-    if(e->cursor.x != line->count)
-        memmove(&line->data[x+1], &line->data[x], line->count - x);
+    int offset = line->offset + x;
+    insert(e, offset, c);
+    right(e);
+    
+    // Then we need to move lines. The only things that change are offsets
+    // (and count for the current line)
     line->count += 1;
-    line->data[x] = c;
-    line->data[line->count] = '\0';
+    
+    for(int i = y+1; i < e->lineCount; ++i) {
+        e->lines[i].offset += 1; // +1 for linefeed
+    }
 }
 
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
 static void editorNewline(Editor* e) {
-    if(e->cursor.x) printf("\033[%dD", e->cursor.x);
-    //printf("\033[1B");
-    putchar('\n');
-    
-    assert(e->lineCount < TERM_EDITOR_MAX_LINES);
-    
+    assert(e->lineCount + 1 <= TERM_EDITOR_MAX_LINES);
+    // TODO: implementation
     int x = e->offset.x + e->cursor.x;
     int y = e->offset.y + e->cursor.y;
     
-    e->cursor.y += 1;
-    e->cursor.x = 0;
-    e->offset.x = 0;
+    EditorLine* line = &e->lines[y];
+    int offset = line->offset + x;
+    insert(e, offset, '\n');
     
-    editorDeinitLine(e, e->lineCount);
-    for(int i = e->lineCount; i > y; --i) {
-        e->lines[i].data = e->lines[i-1].data;
-        e->lines[i].count = e->lines[i-1].count;
-        e->lines[i].capacity = e->lines[i-1].capacity;
+    
+    EditorLine next = (EditorLine){line->offset + x + 1, line->count - x};
+    line->count = x;
+    
+    for(int i = e->lineCount; i > y+1; --i) {
+        e->lines[i].offset = e->lines[i-1].offset + 1;
+        e->lines[i].count = e->lines[i-1].offset;
     }
-    
-    EditorLine* currentLine = &e->lines[y];
-    EditorLine* newLine = &e->lines[y+1];
-    
+    e->lines[y+1] = next;
     e->lineCount += 1;
-    editorInitLine(e, y+1);
-    
-    // If we're not at the end of the line, we need to do some splitting
-    int remaining = currentLine->count - x;
-    if(remaining) {
-        editorEnsureLine(newLine, remaining + 1);
-        memcpy(newLine->data, currentLine->data + x, remaining);
-        newLine->data[remaining] = '\0';
-        newLine->count = remaining;
-    }
-
-    currentLine->count = x;
-    if(currentLine->capacity) currentLine->data[x] = '\0';
+    moveNextLine(e);
 }
 
+// MARK: - "public" API
 
-static inline int byteSize(const Editor* e) {
-    int size = 0;
-    for(int i = 0; i < e->lineCount; ++i) {
-        size += e->lines[i].count + 1;
-    }
-    return size;
-}
-
-void termEditorInit(Editor* e, const char* prompt) {
+void termEditorInit(Editor* e) {
     e->cursor = (Coords){0, 0};
     e->offset = (Coords){0, 0};
     
-    e->prompt = prompt;
-    e->promptLength = strlen(prompt);
+    e->prompt = "";
+    e->promptLength = 0;
     
     e->lineCount = 1;
-    for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i)
-        editorInitLine(e, i);
+    e->count = 0;
+    e->capacity = 0;
+    e->buffer = NULL;
+    
+    for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i) {
+        e->lines[i].count = 0;
+        e->lines[i].offset = 0;
+    }
 }
 
 void termEditorDeinit(Editor* e) {
-    for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i)
-        editorDeinitLine(e, i);
+    if(e->buffer) free(e->buffer);
+    termEditorInit(e);
 }
 
 char* termEditorFlush(Editor* e) {
-    int bytes = byteSize(e);
-    char* string = malloc((bytes + 1) * sizeof(char));
-    int index = 0;
-    for(int i = 0; i < e->lineCount; ++i) {
-        if(e->lines[i].count) {
-            memcpy(string + index, e->lines[i].data, e->lines[i].count);
-            index += e->lines[i].count;
-        }
-        string[index++] = '\n';
-    }
-    string[bytes] = '\0';
-    return string;
+    char* data = e->buffer;
+    e->buffer = NULL;
+    e->count = 0;
+    e->capacity = 0;
+    return data;
 }
 
 static void scrollLeft(Editor* e, int over) {
@@ -226,7 +186,6 @@ static void termEditorCLS(Editor* e) {
         e->promptLength + e->cursor.x,
         e->cursor.y - e->offset.y
     };
-    
     
     Coords current = (Coords){0, 0};
     
@@ -282,17 +241,10 @@ void termEditorRender(Editor* e) {
     // the simple bit: we print the lines!
     for(int i = e->offset.y; i < min(e->lineCount, ny); ++i) {
         current.x = 0;
-        termColorFG(stdout, kTermBlue);
-        if(i)
-            current.x += printf("%*s", e->promptLength, "| ");
-        else
-            current.x += printf("%s", e->prompt);
-        termColorFG(stdout, kTermDefault);
-        
         EditorLine line = e->lines[i];
-        
         if(line.count) {
-            printf("%.*s", min(line.count, nx - e->promptLength), line.data + e->offset.x);
+            printf("%.*s", min(line.count, nx - e->promptLength),
+                   &e->buffer[line.offset+e->offset.x]);
         }
         putchar('\n');
         current.y += 1;

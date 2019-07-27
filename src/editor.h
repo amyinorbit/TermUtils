@@ -25,9 +25,8 @@ typedef enum {
 } EditorStatus;
 
 typedef struct EditorLine {
+    int offset;
     int count;
-    int capacity;
-    char* data;
 } EditorLine;
 
 typedef struct {
@@ -43,9 +42,13 @@ typedef struct Editor {
     
     int lineCount;
     EditorLine lines[TERM_EDITOR_MAX_LINES];
+    
+    char* buffer;
+    int count;
+    int capacity;
 } Editor;
 
-void termEditorInit(Editor* e, const char* prompt);
+void termEditorInit(Editor* e);
 void termEditorDeinit(Editor* e);
 
 char* termEditorFlush(Editor* e);

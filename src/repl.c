@@ -50,7 +50,7 @@ char* termREPL(TermREPL* repl) {
     int historyIndex = -1;
     
     Editor editor;
-    termEditorInit(&editor, repl->prompt);
+    termEditorInit(&editor);
     
     EditorStatus status;
     int braces = 0;

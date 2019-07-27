@@ -11,14 +11,14 @@
 int main(int argc, const char** argv) {
     termFilter(kTermInfo);
     
-    TermREPL repl;
-    termREPLInit(&repl, "repl > ", kTermCyan);
-    char* data = NULL;
-
-    while((data = termREPL(&repl))) {
-        termInfo("demo", "received repl input: %s", data);
-        free(data);
-    }
-
-    termREPLDeinit(&repl);
+    Editor editor;
+    termEditorInit(&editor);
+    
+    do {
+        termEditorRender(&editor);
+    } while(termEditorUpdate(&editor, getch()) != kTermEditorDone);
+    
+    char* data = termEditorFlush(&editor);
+    printf("Editor data: \n---\n%s\n---\n", data);
+    termEditorDeinit(&editor);
 }
