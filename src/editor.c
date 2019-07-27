@@ -141,6 +141,9 @@ static void editorNewline(Editor* e) {
     }
     e->lines[y+1] = next;
     e->lineCount += 1;
+    
+    e->cursor.x = 0;
+    e->cursor.y += 1;
     putchar('\n');
 }
 
