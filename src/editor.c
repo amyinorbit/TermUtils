@@ -29,15 +29,26 @@ static inline void moveNextLine(Editor* e) {
     moveLineStart(e);
 }
 
-static inline void right(Editor* e) {
-    e->cursor.x += 1;
-    printf("\033[1C");
+static inline void up(Editor* e, int n) {
+    e->cursor.y -= n;
+    printf("\033[%dA", n);
 }
 
-static inline void left(Editor* e) {
-    if(!e->cursor.x) return;
-    e->cursor.x -= 1;
-    printf("\033[1D");
+static inline void down(Editor* e, int n) {
+    e->cursor.y += n;
+    printf("\033[%dB", n);
+}
+
+static inline void right(Editor* e, int n) {
+    if(!n) return;
+    e->cursor.x += n;
+    printf("\033[%dC", n);
+}
+
+static inline void left(Editor* e, int n) {
+    if(!e->cursor.x || !n) return;
+    e->cursor.x -= n;
+    printf("\033[%dD", n);
 }
 
 static void ensureBuffer(Editor* e, int count) {
@@ -68,6 +79,37 @@ static inline void erase(Editor* e, int offset) {
 
 static void editorBackspace(Editor* e) {
     // TODO: implementation
+    int x = e->offset.x + e->cursor.x;
+    int y = e->offset.y + e->cursor.y;
+    
+    EditorLine* line = &e->lines[y];
+    int offset = line->offset + (x - 1);
+    
+    if(offset < 0) return;
+    
+    char tbd = e->buffer[offset];
+    
+    if(tbd == '\n') {
+        assert(y > 0 && "If wer're deleting \\n, we shouldn't be on the first line");
+        assert(x == 0 && "We should be at the start of the line");
+        erase(e, offset);
+        
+        EditorLine* prev = &e->lines[y-1];
+        right(e, prev->count);
+        up(e, 1);
+        prev->count += line->count;
+        
+        e->lineCount -= 1;
+        for(int i = y; i < e->lineCount; ++i) {
+            e->lines[i] = e->lines[i+1];
+        }
+        
+    } else {
+        erase(e, offset);
+        line->count -= 1;
+        left(e, 1);
+    }
+    for(int i = (e->offset.y + e->cursor.y)+1; i < e->lineCount; ++i) e->lines[i].offset -= 1;
 }
 
 static void editorInsert(Editor* e, char c) {
@@ -77,7 +119,7 @@ static void editorInsert(Editor* e, char c) {
     EditorLine* line = &e->lines[y];
     int offset = line->offset + x;
     insert(e, offset, c);
-    right(e);
+    right(e, 1);
     
     // Then we need to move lines. The only things that change are offsets
     // (and count for the current line)
@@ -100,12 +142,12 @@ static void editorNewline(Editor* e) {
     insert(e, offset, '\n');
     
     
-    EditorLine next = (EditorLine){line->offset + x + 1, line->count - x};
+    EditorLine next = (EditorLine){.offset=line->offset + x + 1, .count=line->count - x};
     line->count = x;
     
     for(int i = e->lineCount; i > y+1; --i) {
         e->lines[i].offset = e->lines[i-1].offset + 1;
-        e->lines[i].count = e->lines[i-1].offset;
+        e->lines[i].count = e->lines[i-1].count;
     }
     e->lines[y+1] = next;
     e->lineCount += 1;
