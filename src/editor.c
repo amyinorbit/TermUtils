@@ -300,33 +300,39 @@ void termEditorRender() {
     
     printf("\033[H");
     termClear();
-    printf("\033[H");
     fflush(stdout);
     
     Coords screen = (Coords){
-        E.promptLength + E.cursor.x,
-        E.cursor.y - E.offset.y
+        E.cursor.x + 4,
+        E.cursor.y + 1 // For the prompt line at the top
     };
     
+    termColorBG(stdout, kTermBlack);
+    termColorFG(stdout, kTermBlue);
+    termBold(stdout, true);
+    printf("%-*s\n", nx, E.prompt);
+    termReset(stdout);
+    
     // the simple bit: we print the lines!
-    for(int i = E.offset.y; i < min(E.lineCount, ny); ++i) {
+    for(int i = E.offset.y; i < min(E.lineCount, ny-1); ++i) {
         
-        termColorFG(stdout, kTermBlue);
-        if(i) printf("%*s", E.promptLength, "... ");
-        else printf("%s", E.prompt);
-        termColorFG(stdout, kTermDefault);
+        // termColorFG(stdout, kTermBlue);
+        // if(i) printf("%*s", E.promptLength, "... ");
+        // else printf("%s", E.prompt);
+        // termColorFG(stdout, kTermDefault);
         
         EditorLine line = E.lines[i];
-        if(line.count) {
-            printf("%.*s", min(line.count, nx - E.promptLength),
-                   &E.buffer[line.offset+E.offset.x]);
-        }
+        
+        termColorFG(stdout, kTermBlack);
+        printf("%3d ", i+1);
+        termColorFG(stdout, kTermDefault);
+        
+        printf("%.*s", min(line.count, nx - 4),
+               &E.buffer[line.offset+E.offset.x]);
         putchar('\n');
     }
     
-    fflush(stdout);
     printf("\033[H");
-    fflush(stdout);
     termRight(screen.x);
     termDown(screen.y);
     fflush(stdout);
