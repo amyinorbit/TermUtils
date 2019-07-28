@@ -12,9 +12,6 @@
 
 #include <stdbool.h>
 
-#ifndef TERM_EDITOR_MAX_LINES
-#define TERM_EDITOR_MAX_LINES 64
-#endif
 
 typedef enum {
     kTermEditorDone,

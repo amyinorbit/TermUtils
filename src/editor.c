@@ -32,7 +32,8 @@ typedef struct Editor {
     Coords offset;
     
     int lineCount;
-    EditorLine lines[TERM_EDITOR_MAX_LINES];
+    int lineCapacity;
+    EditorLine* lines;
     
     char* buffer;
     int count;
@@ -62,6 +63,13 @@ static inline void left(int n) {
     if(!E.cursor.x) return;
     termLeft(n);
     E.cursor.x -= n;
+}
+
+static void ensureLines(int count) {
+    if(count <= E.lineCapacity) return;
+    while(E.lineCapacity < count)
+        E.lineCapacity = E.lineCapacity ? E.lineCapacity * 2 : 32;
+    E.lines = realloc(E.lines, E.lineCapacity * sizeof(EditorLine));
 }
 
 static void ensureBuffer(int count) {
@@ -143,7 +151,7 @@ static void editorInsert(char c) {
 
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
 static void editorNewline() {
-    assert(E.lineCount + 1 <= TERM_EDITOR_MAX_LINES);
+    ensureLines(E.lineCount + 1);
     // TODO: implementation
     int x = E.offset.x + E.cursor.x;
     int y = E.offset.y + E.cursor.y;
@@ -178,19 +186,27 @@ void termEditorInit(const char* prompt) {
     E.promptLength = strlen(prompt);
     
     E.lineCount = 1;
+    E.lineCapacity = 0;
+    ensureLines(1);
+    
     E.count = 0;
     E.capacity = 0;
     E.buffer = NULL;
     
-    for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i) {
-        E.lines[i].count = 0;
-        E.lines[i].offset = 0;
-    }
+    E.lines[0] = (EditorLine){.count = 0, .offset = 0};
 }
 
 void termEditorDeinit() {
     if(E.buffer) free(E.buffer);
-    termEditorInit("");
+    if(E.lines) free(E.lines);
+    E.lines = NULL;
+    E.lineCount = E.lineCapacity = 0;
+    E.buffer = NULL;
+    E.count = E.capacity = 0;
+    E.prompt = "";
+    E.promptLength = 0;
+    E.cursor = (Coords){0, 0};
+    E.offset = (Coords){0, 0};
 }
 
 char* termEditorFlush() {
