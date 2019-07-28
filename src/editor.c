@@ -9,11 +9,13 @@
 //===--------------------------------------------------------------------------------------------===
 #include "editor.h"
 #include "shims.h"
+#include "editor_keys.h"
 #include <term/colors.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <ctype.h>
 
 typedef struct EditorLine {
     int offset;
@@ -98,6 +100,36 @@ static inline void erase(int offset) {
     E.buffer[E.count] = '\0';
 }
 
+static void editorDEL() {
+    int x = E.offset.x + E.cursor.x;
+    int y = E.offset.y + E.cursor.y;
+    
+    EditorLine* line = &E.lines[y];
+    int offset = line->offset + x;
+    
+    if(offset >= E.count) return;
+    
+    char tbd = E.buffer[offset];
+    
+    if(tbd == '\n') {
+        assert(y < E.lineCount - 1 && "If we're deleting \\n, we shouldn't be on the first line");
+        assert(x == line->count && "We should be at the end of the line");
+        erase(offset);
+        
+        EditorLine* next = &E.lines[y+1];
+        line->count += next->count;
+        
+        E.lineCount -= 1;
+        for(int i = y+1; i < E.lineCount; ++i) {
+            E.lines[i] = E.lines[i+1];
+        }
+    } else {
+        erase(offset);
+        line->count -= 1;
+    }
+    for(int i = (E.offset.y + E.cursor.y)+1; i < E.lineCount; ++i) E.lines[i].offset -= 1;
+}
+
 static void editorBackspace() {
     // TODO: implementation
     int x = E.offset.x + E.cursor.x;
@@ -173,6 +205,7 @@ static void editorNewline() {
     
     E.cursor.x = 0;
     E.cursor.y += 1;
+    E.offset.x = 0;
     putchar('\n');
 }
 
@@ -316,19 +349,14 @@ void termEditorRender() {
     // the simple bit: we print the lines!
     for(int i = E.offset.y; i < min(E.lineCount, ny-1); ++i) {
         
-        // termColorFG(stdout, kTermBlue);
-        // if(i) printf("%*s", E.promptLength, "... ");
-        // else printf("%s", E.prompt);
-        // termColorFG(stdout, kTermDefault);
-        
         EditorLine line = E.lines[i];
         
         termColorFG(stdout, kTermBlack);
         printf("%3d ", i+1);
         termColorFG(stdout, kTermDefault);
         
-        printf("%.*s", min(line.count, nx - 4),
-               &E.buffer[line.offset+E.offset.x]);
+        if(line.count && line.count > E.offset.x) 
+            printf("%.*s", min(line.count, nx - 4), &E.buffer[line.offset+E.offset.x]);
         putchar('\n');
     }
     
@@ -364,57 +392,85 @@ void termEditorDown() {
     left(E.cursor.x - max);
 }
 
-static EditorStatus processEscape() {
-    if(getch() != 91) return kTermEditorOK;
-    switch(getch()) {
+static int getInput() {
+    // Buffer for our input. We need that for extended escapes
+    char buf[3];
+    
+    char c = getch();
+    switch(c) {
         
-    case 65:
-        if(E.cursor.y + E.offset.y == 0) return kTermEditorTop;
-        termEditorUp();
-        return kTermEditorOK;
+    case KEY_ESC:
+        buf[0] = getch();
+        buf[1] = getch();
         
-    case 66:
-        if(E.cursor.y + E.offset.y == E.lineCount - 1) return kTermEditorBottom;
-        termEditorDown();
-        return kTermEditorOK;
-        
-    // right arrow
-    case 67:
-        termEditorRight();
-        return kTermEditorOK;
-        
-    // left arrow
-    case 68:
-        termEditorLeft();
-        return kTermEditorOK;
+        if(buf[0] == '[') {
+            // If we have a digit, then we have an extended escape sequence
+            if(isnumber(buf[1])) {
+                buf[2] = getch();
+                if(buf[2] == '~') {
+                    switch(buf[1]) {
+                        case '3': return KEY_DELETE;
+                        case '5': return KEY_PAGE_UP;
+                        case '6': return KEY_PAGE_DOWN;
+                    }
+                }
+            } else {
+                switch(buf[1]) {
+                    case 'A': return KEY_ARROW_UP;
+                    case 'B': return KEY_ARROW_DOWN;
+                    case 'C': return KEY_ARROW_RIGHT;
+                    case 'D': return KEY_ARROW_LEFT;
+                }
+            }
+        }
+        break;
+    default:
+        return c;
     }
-    return kTermEditorOK;
+    return -1;
 }
 
-EditorStatus termEditorUpdate(char c) {
+EditorStatus termEditorUpdate() {
     EditorStatus status = kTermEditorOK;
-    
+    int c = getInput();
     switch(c) {
-    case '\n':
+    case KEY_RETURN:
         editorNewline();
         status = kTermEditorReturn;
         break;
         
-    case 0x7f:
-        editorBackspace();
-        status = kTermEditorOK;
+    case KEY_DELETE:
+        editorDEL();
         break;
         
-    case 0x04:
-        return kTermEditorDone;
+    case KEY_BACKSPACE:
+        editorBackspace();
+        break;
         
-    case 0x1b:
-        status = processEscape();
+    case KEY_ARROW_UP:
+        if(E.cursor.y + E.offset.y == 0)
+            status = kTermEditorTop;
+        else
+            termEditorUp();
+        break;
+        
+    case KEY_ARROW_DOWN:
+        if(E.cursor.y + E.offset.y == E.lineCount - 1)
+            status = kTermEditorTop;
+        else
+            termEditorDown();
+        break;
+        
+    case KEY_ARROW_RIGHT:
+        termEditorRight();
+        break;
+        
+    case KEY_ARROW_LEFT:
+        termEditorLeft();
         break;
         
     default:
         editorInsert(c);
-        status = kTermEditorOK;
         break;
     }
     keepInViewX();

@@ -15,7 +15,7 @@ int main(int argc, const char** argv) {
     
     do {
         termEditorRender();
-    } while(termEditorUpdate(getch()) != kTermEditorDone);
+    } while(termEditorUpdate() != kTermEditorDone);
     
     char* data = termEditorFlush();
     printf("Editor data: \n---\n%s\n---\n", data);

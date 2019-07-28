@@ -34,7 +34,7 @@ void termEditorDown();
 void termEditorReplace(const char* data);
 void termEditorClear();
 void termEditorRender();
-EditorStatus termEditorUpdate(char c);
+EditorStatus termEditorUpdate();
 
 
 #endif

@@ -50,22 +50,12 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     termEditorInit("repl > ");
     
     EditorStatus status;
-    int braces = 0;
-    int parens = 0;
     
     char* output = NULL;
     
     for(;;) {
         termEditorRender();
-        char c = getch();
-        status = termEditorUpdate(c);
-        switch(c) {
-            case '(': parens += 1; break;
-            case ')': parens -= 1; break;
-            case '{': braces += 1; break;
-            case '}': braces -= 1; break;
-            default: break;
-        }
+        status = termEditorUpdate();
         
         switch(status) {
         case kTermEditorDone:
@@ -89,11 +79,6 @@ char* termREPL(TermREPL* repl, const char* prompt) {
             break;
             
         case kTermEditorReturn:
-            if(braces) {
-                for(int i = 0; i < braces * 4; ++i) 
-                    termEditorUpdate(' ');
-            }
-            if(parens || braces) break;
             
             output = termEditorFlush();
             int length = strlen(output);
