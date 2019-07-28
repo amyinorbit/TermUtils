@@ -17,11 +17,6 @@
 
 static inline int min(int a, int b) { return a < b ? a : b; }
 
-static inline void termUp(int n) { if(n) printf("\033[%dA", n); }
-static inline void termDown(int n) { if(n) printf("\033[%dB", n); }
-static inline void termRight(int n) { if(n) printf("\033[%dC", n); }
-static inline void termLeft(int n) { if(n) printf("\033[%dD", n); }
-
 static inline void up(Editor* e, int n) {
     termUp(n);
     e->cursor.y -= n;
@@ -82,7 +77,7 @@ static void editorBackspace(Editor* e) {
     char tbd = e->buffer[offset];
     
     if(tbd == '\n') {
-        assert(y > 0 && "If wer're deleting \\n, we shouldn't be on the first line");
+        assert(y > 0 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == 0 && "We should be at the start of the line");
         erase(e, offset);
         
@@ -209,7 +204,6 @@ static void keepInViewX(Editor* e) {
 }
 
 static void termEditorCLS(Editor* e) {
-    int nx = tcols();
     int ny = min(trows(), 10);
     
     Coords screen = (Coords){
@@ -223,7 +217,7 @@ static void termEditorCLS(Editor* e) {
     termUp(screen.y);
     
     for(int i = e->offset.y; i < min(e->lineCount + 1, ny); ++i) {
-        for(int i = 0; i < nx; ++i) putchar(' ');
+        termClearLine();
         putchar('\n');
         current.y += 1;
     }
