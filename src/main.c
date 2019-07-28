@@ -9,29 +9,28 @@
 
 
 int main(int argc, const char** argv) {
+    termFilter(kTermInfo);
+    
+    termEditorInit("prompt> ");
+    
+    do {
+        termEditorRender();
+    } while(termEditorUpdate(getch()) != kTermEditorDone);
+    
+    char* data = termEditorFlush();
+    printf("Editor data: \n---\n%s\n---\n", data);
+    termEditorDeinit();
+    
     // termFilter(kTermInfo);
     // 
-    // Editor editor;
-    // termEditorInit(&editor);
+    // TermREPL repl;
+    // termREPLInit(&repl);
+    // char* data = NULL;
     // 
-    // do {
-    //     termEditorRender(&editor);
-    // } while(termEditorUpdate(&editor, getch()) != kTermEditorDone);
+    // while((data = termREPL(&repl, "repl > "))) {
+    //     termInfo("demo", "received repl input: %s", data);
+    //     free(data);
+    // }
     // 
-    // char* data = termEditorFlush(&editor);
-    // printf("Editor data: \n---\n%s\n---\n", data);
-    // termEditorDeinit(&editor);
-    
-    termFilter(kTermInfo);
-
-    TermREPL repl;
-    termREPLInit(&repl);
-    char* data = NULL;
-
-    while((data = termREPL(&repl, "repl > "))) {
-        termInfo("demo", "received repl input: %s", data);
-        free(data);
-    }
-
-    termREPLDeinit(&repl);
+    // termREPLDeinit(&repl);
 }

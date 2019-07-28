@@ -296,23 +296,24 @@ void termEditorClear() {
 void termEditorRender() {
     
     int nx = tcols();
-    int ny = min(trows(), 10);
+    int ny = trows();
+    
+    printf("\033[H");
+    termClear();
+    printf("\033[H");
+    fflush(stdout);
     
     Coords screen = (Coords){
         E.promptLength + E.cursor.x,
         E.cursor.y - E.offset.y
     };
-    Coords current = (Coords){0, 0};
-    
-    termEditorCLS();
     
     // the simple bit: we print the lines!
     for(int i = E.offset.y; i < min(E.lineCount, ny); ++i) {
-        current.x = 0;
         
         termColorFG(stdout, kTermBlue);
-        if(i) current.x += printf("%*s", E.promptLength, "... ");
-        else current.x += printf("%s", E.prompt);
+        if(i) printf("%*s", E.promptLength, "... ");
+        else printf("%s", E.prompt);
         termColorFG(stdout, kTermDefault);
         
         EditorLine line = E.lines[i];
@@ -321,12 +322,11 @@ void termEditorRender() {
                    &E.buffer[line.offset+E.offset.x]);
         }
         putchar('\n');
-        current.y += 1;
     }
     
-    termLeft(current.x);
-    termUp(current.y);
-    
+    fflush(stdout);
+    printf("\033[H");
+    fflush(stdout);
     termRight(screen.x);
     termDown(screen.y);
     fflush(stdout);

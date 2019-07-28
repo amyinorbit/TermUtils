@@ -88,7 +88,7 @@ static inline void termUp(int n) { if(n) printf("\033[%dA", n); }
 static inline void termDown(int n) { if(n) printf("\033[%dB", n); }
 static inline void termRight(int n) { if(n) printf("\033[%dC", n); }
 static inline void termLeft(int n) { if(n) printf("\033[%dD", n); }
-static inline void termClear() { printf("\033[");}
+static inline void termClear() { printf("\033[2J");}
 
 static inline void termClearLine() { printf("\033[2K"); }
 
