@@ -24,44 +24,20 @@ typedef enum {
     kTermEditorReturn,
 } EditorStatus;
 
-typedef struct EditorLine {
-    int offset;
-    int count;
-} EditorLine;
+void termEditorInit(const char* prompt);
+void termEditorDeinit();
 
-typedef struct {
-    int x, y;
-} Coords;
+char* termEditorFlush();
 
-typedef struct Editor {
-    const char* prompt;
-    int promptLength;
-    
-    Coords cursor;
-    Coords offset;
-    
-    int lineCount;
-    EditorLine lines[TERM_EDITOR_MAX_LINES];
-    
-    char* buffer;
-    int count;
-    int capacity;
-} Editor;
+void termEditorLeft();
+void termEditorRight();
+void termEditorUp();
+void termEditorDown();
 
-void termEditorInit(Editor* e);
-void termEditorDeinit(Editor* e);
-
-char* termEditorFlush(Editor* e);
-
-void termEditorLeft(Editor* e);
-void termEditorRight(Editor* e);
-void termEditorUp(Editor* e);
-void termEditorDown(Editor* e);
-
-void termEditorReplace(Editor* e, const char* data);
-void termEditorClear(Editor* e);
-void termEditorRender(Editor* e);
-EditorStatus termEditorUpdate(Editor* e, char c);
+void termEditorReplace(const char* data);
+void termEditorClear();
+void termEditorRender();
+EditorStatus termEditorUpdate(char c);
 
 
 #endif

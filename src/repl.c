@@ -47,10 +47,7 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     
     int historyIndex = -1;
     
-    Editor editor;
-    termEditorInit(&editor);
-    editor.prompt = prompt;
-    editor.promptLength = strlen(prompt);
+    termEditorInit("repl > ");
     
     EditorStatus status;
     int braces = 0;
@@ -59,9 +56,9 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     char* output = NULL;
     
     for(;;) {
-        termEditorRender(&editor);
+        termEditorRender();
         char c = getch();
-        status = termEditorUpdate(&editor, c);
+        status = termEditorUpdate(c);
         switch(c) {
             case '(': parens += 1; break;
             case ')': parens -= 1; break;
@@ -77,28 +74,28 @@ char* termREPL(TermREPL* repl, const char* prompt) {
         case kTermEditorTop:
             if(historyIndex < repl->historyCount - 1) {
                 historyIndex += 1;
-                termEditorReplace(&editor, repl->history[historyIndex]);
+                termEditorReplace(repl->history[historyIndex]);
             }
             break;
             
         case kTermEditorBottom:
             if(historyIndex > 0) {
                 historyIndex -= 1;
-                termEditorReplace(&editor, repl->history[historyIndex]);
+                termEditorReplace(repl->history[historyIndex]);
             } else if(historyIndex == 0) {
                 historyIndex = -1;
-                termEditorReplace(&editor, "");
+                termEditorReplace("");
             }
             break;
             
         case kTermEditorReturn:
             if(braces) {
                 for(int i = 0; i < braces * 4; ++i) 
-                    termEditorUpdate(&editor, ' ');
+                    termEditorUpdate(' ');
             }
             if(parens || braces) break;
             
-            output = termEditorFlush(&editor);
+            output = termEditorFlush();
             int length = strlen(output);
             
             memmove(repl->history+1, repl->history, (TERM_MAX_HISTORY-1) * sizeof(char*));
@@ -117,7 +114,7 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     }
     
     cleanup:
-    termEditorDeinit(&editor);
+    termEditorDeinit();
     fflush(stdout);
     return output;
 }

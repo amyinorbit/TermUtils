@@ -15,200 +15,226 @@
 #include <stdlib.h>
 #include <assert.h>
 
+typedef struct EditorLine {
+    int offset;
+    int count;
+} EditorLine;
+
+typedef struct {
+    int x, y;
+} Coords;
+
+typedef struct Editor {
+    const char* prompt;
+    int promptLength;
+    
+    Coords cursor;
+    Coords offset;
+    
+    int lineCount;
+    EditorLine lines[TERM_EDITOR_MAX_LINES];
+    
+    char* buffer;
+    int count;
+    int capacity;
+} Editor;
+
+static Editor E;
+
 static inline int min(int a, int b) { return a < b ? a : b; }
 
-static inline void up(Editor* e, int n) {
+static inline void up(int n) {
     termUp(n);
-    e->cursor.y -= n;
+    E.cursor.y -= n;
 }
 
-static inline void down(Editor* e, int n) {
+static inline void down(int n) {
     termDown(n);
-    e->cursor.y += n;
+    E.cursor.y += n;
 }
 
-static inline void right(Editor* e, int n) {
+static inline void right(int n) {
     termRight(n);
-    e->cursor.x += n;
+    E.cursor.x += n;
 }
 
-static inline void left(Editor* e, int n) {
-    if(!e->cursor.x) return;
+static inline void left(int n) {
+    if(!E.cursor.x) return;
     termLeft(n);
-    e->cursor.x -= n;
+    E.cursor.x -= n;
 }
 
-static void ensureBuffer(Editor* e, int count) {
+static void ensureBuffer(int count) {
     count += 1; // To account for the trailing \0
-    if(count <= e->capacity) return;
-    while(e->capacity < count)
-        e->capacity = e->capacity ? e->capacity * 2 : 256;
-    e->buffer = realloc(e->buffer, e->capacity * sizeof(char));
+    if(count <= E.capacity) return;
+    while(E.capacity < count)
+        E.capacity = E.capacity ? E.capacity * 2 : 256;
+    E.buffer = realloc(E.buffer, E.capacity * sizeof(char));
 }
 
-static inline void insert(Editor* e, int offset, char c) {
-    assert(offset <= e->count && "Invalid insertion offset");
-    ensureBuffer(e, e->count + 1);
-    int moveCount = e->count - offset;
-    memmove(&e->buffer[offset+1], &e->buffer[offset], moveCount * sizeof(char));
-    e->buffer[offset] = c;
-    e->count += 1;
-    e->buffer[e->count] = '\0';
+static inline void insert(int offset, char c) {
+    assert(offset <= E.count && "Invalid insertion offset");
+    ensureBuffer(E.count + 1);
+    int moveCount = E.count - offset;
+    memmove(&E.buffer[offset+1], &E.buffer[offset], moveCount * sizeof(char));
+    E.buffer[offset] = c;
+    E.count += 1;
+    E.buffer[E.count] = '\0';
 }
 
-static inline void erase(Editor* e, int offset) {
-    assert(offset <= e->count && "Invalid insertion offset");
-    int moveCount = e->count - (offset + 1);
-    memmove(&e->buffer[offset], &e->buffer[offset+1], moveCount * sizeof(char));
-    e->count -= 1;
-    e->buffer[e->count] = '\0';
+static inline void erase(int offset) {
+    assert(offset <= E.count && "Invalid insertion offset");
+    int moveCount = E.count - (offset + 1);
+    memmove(&E.buffer[offset], &E.buffer[offset+1], moveCount * sizeof(char));
+    E.count -= 1;
+    E.buffer[E.count] = '\0';
 }
 
-static void editorBackspace(Editor* e) {
+static void editorBackspace() {
     // TODO: implementation
-    int x = e->offset.x + e->cursor.x;
-    int y = e->offset.y + e->cursor.y;
+    int x = E.offset.x + E.cursor.x;
+    int y = E.offset.y + E.cursor.y;
     
-    EditorLine* line = &e->lines[y];
+    EditorLine* line = &E.lines[y];
     int offset = line->offset + (x - 1);
     
     if(offset < 0) return;
     
-    char tbd = e->buffer[offset];
+    char tbd = E.buffer[offset];
     
     if(tbd == '\n') {
         assert(y > 0 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == 0 && "We should be at the start of the line");
-        erase(e, offset);
+        erase(offset);
         
-        EditorLine* prev = &e->lines[y-1];
-        right(e, prev->count);
-        up(e, 1);
+        EditorLine* prev = &E.lines[y-1];
+        right(prev->count);
+        up(1);
         prev->count += line->count;
         
-        e->lineCount -= 1;
-        for(int i = y; i < e->lineCount; ++i) {
-            e->lines[i] = e->lines[i+1];
+        E.lineCount -= 1;
+        for(int i = y; i < E.lineCount; ++i) {
+            E.lines[i] = E.lines[i+1];
         }
         
     } else {
-        erase(e, offset);
+        erase(offset);
         line->count -= 1;
-        left(e, 1);
+        left(1);
     }
-    for(int i = (e->offset.y + e->cursor.y)+1; i < e->lineCount; ++i) e->lines[i].offset -= 1;
+    for(int i = (E.offset.y + E.cursor.y)+1; i < E.lineCount; ++i) E.lines[i].offset -= 1;
 }
 
-static void editorInsert(Editor* e, char c) {
-    int x = e->offset.x + e->cursor.x;
-    int y = e->offset.y + e->cursor.y;
+static void editorInsert(char c) {
+    int x = E.offset.x + E.cursor.x;
+    int y = E.offset.y + E.cursor.y;
     
-    EditorLine* line = &e->lines[y];
+    EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    insert(e, offset, c);
-    right(e, 1);
+    insert(offset, c);
+    right(1);
     
     // Then we need to move lines. The only things that change are offsets
     // (and count for the current line)
     line->count += 1;
     
-    for(int i = y+1; i < e->lineCount; ++i) e->lines[i].offset += 1;
+    for(int i = y+1; i < E.lineCount; ++i) E.lines[i].offset += 1;
 }
 
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
-static void editorNewline(Editor* e) {
-    assert(e->lineCount + 1 <= TERM_EDITOR_MAX_LINES);
+static void editorNewline() {
+    assert(E.lineCount + 1 <= TERM_EDITOR_MAX_LINES);
     // TODO: implementation
-    int x = e->offset.x + e->cursor.x;
-    int y = e->offset.y + e->cursor.y;
+    int x = E.offset.x + E.cursor.x;
+    int y = E.offset.y + E.cursor.y;
     
-    EditorLine* line = &e->lines[y];
+    EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    insert(e, offset, '\n');
+    insert(offset, '\n');
     
     
     EditorLine next = (EditorLine){.offset=line->offset + x + 1, .count=line->count - x};
     line->count = x;
     
-    for(int i = e->lineCount; i > y+1; --i) {
-        e->lines[i].offset = e->lines[i-1].offset + 1;
-        e->lines[i].count = e->lines[i-1].count;
+    for(int i = E.lineCount; i > y+1; --i) {
+        E.lines[i].offset = E.lines[i-1].offset + 1;
+        E.lines[i].count = E.lines[i-1].count;
     }
-    e->lines[y+1] = next;
-    e->lineCount += 1;
+    E.lines[y+1] = next;
+    E.lineCount += 1;
     
-    e->cursor.x = 0;
-    e->cursor.y += 1;
+    E.cursor.x = 0;
+    E.cursor.y += 1;
     putchar('\n');
 }
 
 // MARK: - "public" API
 
-void termEditorInit(Editor* e) {
-    e->cursor = (Coords){0, 0};
-    e->offset = (Coords){0, 0};
+void termEditorInit(const char* prompt) {
+    E.cursor = (Coords){0, 0};
+    E.offset = (Coords){0, 0};
     
-    e->prompt = "";
-    e->promptLength = 0;
+    E.prompt = prompt;
+    E.promptLength = strlen(prompt);
     
-    e->lineCount = 1;
-    e->count = 0;
-    e->capacity = 0;
-    e->buffer = NULL;
+    E.lineCount = 1;
+    E.count = 0;
+    E.capacity = 0;
+    E.buffer = NULL;
     
     for(int i = 0; i < TERM_EDITOR_MAX_LINES; ++i) {
-        e->lines[i].count = 0;
-        e->lines[i].offset = 0;
+        E.lines[i].count = 0;
+        E.lines[i].offset = 0;
     }
 }
 
-void termEditorDeinit(Editor* e) {
-    if(e->buffer) free(e->buffer);
-    termEditorInit(e);
+void termEditorDeinit() {
+    if(E.buffer) free(E.buffer);
+    termEditorInit("");
 }
 
-char* termEditorFlush(Editor* e) {
-    char* data = e->buffer;
-    e->buffer = NULL;
-    e->count = 0;
-    e->capacity = 0;
+char* termEditorFlush() {
+    char* data = E.buffer;
+    E.buffer = NULL;
+    E.count = 0;
+    E.capacity = 0;
     return data;
 }
 
-static void scrollLeft(Editor* e, int over) {
+static void scrollLeft(int over) {
     int dist = 0;
     while(dist < over) dist += 20;
-    dist = min(dist, e->offset.x);
+    dist = min(dist, E.offset.x);
     
-    e->offset.x -= dist;
-    right(e, dist);
+    E.offset.x -= dist;
+    right(dist);
 }
 
-static void scrollRight(Editor* e, int over) {
+static void scrollRight(int over) {
     int dist = 0;
     while(dist < over) dist += 20;
     
-    e->offset.x += dist;
-    left(e, dist);
+    E.offset.x += dist;
+    left(dist);
 }
 
-static void keepInViewX(Editor* e) {
+static void keepInViewX() {
     int minX = 2;
-    int maxX = tcols() - (e->promptLength + 2);
+    int maxX = tcols() - (E.promptLength + 2);
     
-    if(e->cursor.x > maxX) {
-        scrollRight(e, e->cursor.x - maxX);
-    } else if(e->offset.x && e->cursor.x < minX) {
-        scrollLeft(e, minX - e->cursor.x);
+    if(E.cursor.x > maxX) {
+        scrollRight(E.cursor.x - maxX);
+    } else if(E.offset.x && E.cursor.x < minX) {
+        scrollLeft(minX - E.cursor.x);
     }
 }
 
-static void termEditorCLS(Editor* e) {
+static void termEditorCLS() {
     int ny = min(trows(), 10);
     
     Coords screen = (Coords){
-        e->promptLength + e->cursor.x,
-        e->cursor.y - e->offset.y
+        E.promptLength + E.cursor.x,
+        E.cursor.y - E.offset.y
     };
     
     Coords current = (Coords){0, 0};
@@ -216,7 +242,7 @@ static void termEditorCLS(Editor* e) {
     termLeft(screen.x);
     termUp(screen.y);
     
-    for(int i = e->offset.y; i < min(e->lineCount + 1, ny); ++i) {
+    for(int i = E.offset.y; i < min(E.lineCount + 1, ny); ++i) {
         termClearLine();
         putchar('\n');
         current.y += 1;
@@ -228,55 +254,55 @@ static void termEditorCLS(Editor* e) {
 }
 
 // TODO: this isn't really the nicest way to do things, we could probably memcpy a lot of this.
-void termEditorReplace(Editor* e, const char* data) {
-    termEditorClear(e);
+void termEditorReplace(const char* data) {
+    termEditorClear();
     while(*data) {
         char c = *data++;
-        if(c == '\n') editorNewline(e);
-        else editorInsert(e, c);
+        if(c == '\n') editorNewline();
+        else editorInsert(c);
     }
 }
 
-void termEditorClear(Editor* e) {
-    termEditorCLS(e);
-    e->cursor.x = 0;
-    e->cursor.y = 0;
-    e->offset.x = 0;
-    e->offset.y = 0;
+void termEditorClear() {
+    termEditorCLS();
+    E.cursor.x = 0;
+    E.cursor.y = 0;
+    E.offset.x = 0;
+    E.offset.y = 0;
     
-    for(int i = 0; i < e->lineCount; ++i) {
-        e->lines[i].count = 0;
+    for(int i = 0; i < E.lineCount; ++i) {
+        E.lines[i].count = 0;
     }
-    e->count = 0;
-    e->lineCount = 1;
+    E.count = 0;
+    E.lineCount = 1;
 }
 
-void termEditorRender(Editor* e) {
+void termEditorRender() {
     
     int nx = tcols();
     int ny = min(trows(), 10);
     
     Coords screen = (Coords){
-        e->promptLength + e->cursor.x,
-        e->cursor.y - e->offset.y
+        E.promptLength + E.cursor.x,
+        E.cursor.y - E.offset.y
     };
     Coords current = (Coords){0, 0};
     
-    termEditorCLS(e);
+    termEditorCLS();
     
     // the simple bit: we print the lines!
-    for(int i = e->offset.y; i < min(e->lineCount, ny); ++i) {
+    for(int i = E.offset.y; i < min(E.lineCount, ny); ++i) {
         current.x = 0;
         
         termColorFG(stdout, kTermBlue);
-        if(i) current.x += printf("%*s", e->promptLength, "... ");
-        else current.x += printf("%s", e->prompt);
+        if(i) current.x += printf("%*s", E.promptLength, "... ");
+        else current.x += printf("%s", E.prompt);
         termColorFG(stdout, kTermDefault);
         
-        EditorLine line = e->lines[i];
+        EditorLine line = E.lines[i];
         if(line.count) {
-            printf("%.*s", min(line.count, nx - e->promptLength),
-                   &e->buffer[line.offset+e->offset.x]);
+            printf("%.*s", min(line.count, nx - E.promptLength),
+                   &E.buffer[line.offset+E.offset.x]);
         }
         putchar('\n');
         current.y += 1;
@@ -290,70 +316,70 @@ void termEditorRender(Editor* e) {
     fflush(stdout);
 }
 
-void termEditorLeft(Editor* e) {
-    if(e->cursor.x <= 0) return;
-    left(e, 1);
+void termEditorLeft() {
+    if(E.cursor.x <= 0) return;
+    left(1);
 }
 
-void termEditorRight(Editor* e) {
-    if(e->cursor.x + e->offset.x >= e->lines[e->cursor.y].count) return;
-    right(e, 1);
+void termEditorRight() {
+    if(E.cursor.x + E.offset.x >= E.lines[E.cursor.y].count) return;
+    right(1);
 }
 
-void termEditorUp(Editor* e) {
-    up(e, 1);
+void termEditorUp() {
+    up(1);
     
-    int max = e->lines[e->cursor.y].count;
-    if(e->cursor.x <= max) return;
-    left(e, e->cursor.x - max);
+    int max = E.lines[E.cursor.y].count;
+    if(E.cursor.x <= max) return;
+    left(E.cursor.x - max);
 }
 
-void termEditorDown(Editor* e) {
-    down(e, 1);
+void termEditorDown() {
+    down(1);
     
-    int max = e->lines[e->cursor.y].count;
-    if(e->cursor.x <= max) return;
-    left(e, e->cursor.x - max);
+    int max = E.lines[E.cursor.y].count;
+    if(E.cursor.x <= max) return;
+    left(E.cursor.x - max);
 }
 
-static EditorStatus processEscape(Editor* e) {
+static EditorStatus processEscape() {
     if(getch() != 91) return kTermEditorOK;
     switch(getch()) {
         
     case 65:
-        if(e->cursor.y + e->offset.y == 0) return kTermEditorTop;
-        termEditorUp(e);
+        if(E.cursor.y + E.offset.y == 0) return kTermEditorTop;
+        termEditorUp();
         return kTermEditorOK;
         
     case 66:
-        if(e->cursor.y + e->offset.y == e->lineCount - 1) return kTermEditorBottom;
-        termEditorDown(e);
+        if(E.cursor.y + E.offset.y == E.lineCount - 1) return kTermEditorBottom;
+        termEditorDown();
         return kTermEditorOK;
         
     // right arrow
     case 67:
-        termEditorRight(e);
+        termEditorRight();
         return kTermEditorOK;
         
     // left arrow
     case 68:
-        termEditorLeft(e);
+        termEditorLeft();
         return kTermEditorOK;
     }
     return kTermEditorOK;
 }
 
-EditorStatus termEditorUpdate(Editor* e, char c) {
+EditorStatus termEditorUpdate(char c) {
     EditorStatus status = kTermEditorOK;
     
     switch(c) {
     case '\n':
-        editorNewline(e);
+        editorNewline();
         status = kTermEditorReturn;
         break;
         
     case 0x7f:
-        editorBackspace(e);
+        editorBackspace();
         status = kTermEditorOK;
         break;
         
@@ -361,15 +387,15 @@ EditorStatus termEditorUpdate(Editor* e, char c) {
         return kTermEditorDone;
         
     case 0x1b:
-        status = processEscape(e);
+        status = processEscape();
         break;
         
     default:
-        editorInsert(e, c);
+        editorInsert(c);
         status = kTermEditorOK;
         break;
     }
-    keepInViewX(e);
+    keepInViewX();
     return status;
 }
 
