@@ -40,8 +40,48 @@ typedef struct Editor {
     int count;
     int capacity;
 } Editor;
-
 static Editor E;
+
+#ifndef _WIN32
+static struct termios savedTerm;
+#endif
+
+void startRawMode() {
+#ifdef _WIN32
+#else
+    struct termios raw;
+
+    if (!isatty(STDIN_FILENO)) return;
+    // atexit(editorAtExit);
+    if (tcgetattr(STDIN_FILENO,&savedTerm) == -1) return;
+
+    raw = savedTerm;  /* modify the original mode */
+    /* input modes: no break, no CR to NL, no parity check, no strip char,
+     * no start/stop output control. */
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    /* output modes - disable post processing */
+    raw.c_oflag &= ~(OPOST);
+    /* control modes - set 8 bit chars */
+    raw.c_cflag |= (CS8);
+    /* local modes - echoing off, canonical off, no extended functions,
+     * no signal chars (^Z,^C) */
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    /* control chars - set return condition: min number of bytes and timer. */
+    // raw.c_cc[VMIN] = 0; /* Return each byte, or zero for timeout. */
+    // raw.c_cc[VTIME] = 1; /* 100 ms timeout (unit is tens of second). */
+
+    /* put terminal in raw mode after flushing */
+    if (tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw) < 0) return;
+#endif
+}
+
+void stopRawMode() {
+#ifdef _WIN32
+#else
+    tcsetattr(STDIN_FILENO,TCSAFLUSH,&savedTerm);
+#endif
+}
+
 
 static inline int min(int a, int b) { return a < b ? a : b; }
 
@@ -183,7 +223,6 @@ static void editorInsert(char c) {
 // TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
 static void editorNewline() {
     ensureLines(E.lineCount + 1);
-    // TODO: implementation
     int x = E.offset.x + E.cursor.x;
     int y = E.offset.y + E.cursor.y;
     
@@ -205,7 +244,9 @@ static void editorNewline() {
     E.cursor.x = 0;
     E.cursor.y += 1;
     E.offset.x = 0;
-    putchar('\n');
+    // printf("\033[%d;5H", 1 + E.cursor.y - E.offset.y);
+    
+    // putchar('\n');
 }
 
 // MARK: - "public" API
@@ -225,9 +266,13 @@ void termEditorInit(const char* title) {
     E.buffer = NULL;
     
     E.lines[0] = (EditorLine){.count = 0, .offset = 0};
+    startRawMode();
+    printf("\033[?1049h");
 }
 
 void termEditorDeinit() {
+    stopRawMode();
+    printf("\033[?1049l");
     if(E.buffer) free(E.buffer);
     if(E.lines) free(E.lines);
     E.lines = NULL;
@@ -266,7 +311,7 @@ static void scrollRight(int over) {
 
 static void keepInViewX() {
     int minX = 2;
-    int maxX = tcols() - 2;
+    int maxX = tcols() - (2 + 5);
     
     if(E.cursor.x > maxX) {
         scrollRight(E.cursor.x - maxX);
@@ -305,46 +350,53 @@ static void renderTitle(int nx, int ny) {
     char locBuffer[16];
     snprintf(locBuffer, 16, "(%d, %d)", c, r);
     
-    termColorBG(stdout, kTermBrightWhite);
-    termColorFG(stdout, kTermBrightBlack);
+    termColorFG(stdout, kTermBlue);
+    printf("\033[%d;1H", ny - 1);
+    printf("\033[7m");
     int titleLength = printf("  %s", E.title);
-    printf("%*s  \n\n", (nx - titleLength - 2), locBuffer);
+    printf("%*s  ", (nx - titleLength - 2), locBuffer);
     termReset(stdout);
+}
+
+static bool renderLineHead(int l) {
+    bool done = false;
+    termColorFG(stdout, kTermBlue);
+    if(l < E.lineCount) {
+        printf("%3d ", l + E.offset.y + 1);
+        done = false;
+    } else {
+        printf("  ~ ");
+        done = true;
+    }
+    termColorFG(stdout, kTermDefault);
+    return done;
 }
 
 void termEditorRender() {
     
     int nx = tcols();
     int ny = trows();
-    
     printf("\033[H");
-    termClear();
-    fflush(stdout);
     
     Coords screen = (Coords){
         E.cursor.x + 4,
-        E.cursor.y + 2 // For the title line at the top
+        E.cursor.y
     };
     
-    renderTitle(nx, ny);
-    
     // the simple bit: we print the lines!
-    for(int i = E.offset.y; i < min(E.lineCount, ny-2); ++i) {
-        
-        EditorLine line = E.lines[i];
-        
-        termColorFG(stdout, kTermBlack);
-        printf("%3d ", i+1);
-        termColorFG(stdout, kTermDefault);
+    for(int i = 0; i < ny-2; ++i) {
+        printf("\033[%d;1H\033[2K", 1 + i);
+        int index = i - E.offset.y;
+        if(renderLineHead(index)) continue;
+        EditorLine line = E.lines[index];
         
         if(line.count && line.count > E.offset.x) 
             printf("%.*s", min(line.count, nx - 4), &E.buffer[line.offset+E.offset.x]);
-        putchar('\n');
     }
+    renderTitle(nx, ny);
+    // printf("\033[%d;")
     
-    printf("\033[H");
-    termRight(screen.x);
-    termDown(screen.y);
+    printf("\033[%d;%dH", screen.y+1, screen.x+1);
     fflush(stdout);
 }
 
@@ -374,12 +426,16 @@ void termEditorDown() {
     left(E.cursor.x - max);
 }
 
+#define CTRL_KEYPRESS(k) ((k)  & 0x1f)
 static int getInput() {
     // Buffer for our input. We need that for extended escapes
     char buf[3];
     
     char c = getch();
     switch(c) {
+        
+    case CTRL('s'):
+        return KEY_CTRL_S;
         
     case KEY_ESC:
         buf[0] = getch();
@@ -453,6 +509,10 @@ EditorStatus termEditorUpdate() {
         
     case KEY_CTRL_D:
         return kTermEditorDone;
+        
+    case KEY_CTRL_S:
+        E.title = "CTRL-S PRESSED";
+        break;
         
     default:
         editorInsert(c);

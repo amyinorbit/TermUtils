@@ -23,17 +23,26 @@
 
 #define BUFFER_DEFAULT_CAPACITY 512
 
+// static inline int getch(void) {
+//     struct termios oldt, newt;
+//     int ch;
+//     tcgetattr(STDIN_FILENO, &oldt);
+//     newt = oldt;
+//     newt.c_lflag &= ~(ICANON | ECHO);
+//     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+//     ch = getchar();
+//     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+//     return ch;
+// }
+
 static inline int getch(void) {
-    struct termios oldt, newt;
-	int ch;
-	tcgetattr(STDIN_FILENO, &oldt);
-	newt = oldt;
-	newt.c_lflag &= ~(ICANON | ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-	ch = getchar();
-	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-	return ch;
+    int ch;
+    int result = read(STDIN_FILENO, &ch, 1);
+    fprintf(stderr, "0x%02x\n", ch);
+    return result == 1 ? ch : -1;
 }
+
+// #define getch getchar
 #endif
 
 static inline int tcols(void) {
@@ -92,5 +101,7 @@ static inline void termClear() { printf("\033[2J");}
 
 static inline void termClearLine() { printf("\033[2K"); }
 
+static inline void termAltStart() { printf("\033[?1049h"); fflush(stdout); }
+static inline void termAltStop() { printf("\033[?1049l"); fflush(stdout); }
 
 #endif

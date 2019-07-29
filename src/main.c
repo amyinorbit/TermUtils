@@ -9,17 +9,14 @@
 
 
 int main(int argc, const char** argv) {
-    termFilter(kTermInfo);
-    
     termEditorInit("file.c");
-    
     do {
         termEditorRender();
     } while(termEditorUpdate() != kTermEditorDone);
     
     char* data = termEditorFlush();
-    printf("Editor data: \n---\n%s\n---\n", data);
     termEditorDeinit();
+    printf("Editor data: \n---\n%s\n---\n", data);
     
     // termFilter(kTermInfo);
     // 
