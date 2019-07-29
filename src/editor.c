@@ -502,10 +502,7 @@ EditorKey termEditorUpdate() {
         return KEY_CTRL_D;
         
     case KEY_CTRL_C:
-        break;
-        
     case KEY_CTRL_S:
-        E.title = "CTRL-S PRESSED";
         break;
         
     default:
