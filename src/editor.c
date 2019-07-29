@@ -7,9 +7,9 @@
 // Licensed under the MIT License
 // =^•.•^=
 //===--------------------------------------------------------------------------------------------===
-#include "editor.h"
-#include "shims.h"
+#include <term/editor.h>
 #include <term/colors.h>
+#include "shims.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

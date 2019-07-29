@@ -8,7 +8,7 @@
 // =^•.•^=
 //===--------------------------------------------------------------------------------------------===
 #include <term/repl.h>
-#include "editor.h"
+#include <term/editor.h>
 #include "shims.h"
 #include <assert.h>
 #include <stdlib.h>

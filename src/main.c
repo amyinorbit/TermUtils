@@ -3,8 +3,8 @@
 #include <term/colors.h>
 #include <term/printing.h>
 #include <term/repl.h>
+#include <term/editor.h>
 #include <stdlib.h>
-#include "editor.h"
 #include "shims.h"
 
 
