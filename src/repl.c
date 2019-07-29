@@ -49,36 +49,34 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     
     termEditorInit("repl > ");
     
-    EditorStatus status;
-    
     char* output = NULL;
     
     for(;;) {
         termEditorRender();
-        status = termEditorUpdate();
+        int key = termEditorUpdate();
         
-        switch(status) {
-        case kTermEditorDone:
+        switch(key) {
+        case KEY_CTRL_D:
             goto cleanup;
             
-        case kTermEditorTop:
-            if(historyIndex < repl->historyCount - 1) {
-                historyIndex += 1;
-                termEditorReplace(repl->history[historyIndex]);
-            }
-            break;
+        // case kTermEditorTop:
+//             if(historyIndex < repl->historyCount - 1) {
+//                 historyIndex += 1;
+//                 termEditorReplace(repl->history[historyIndex]);
+//             }
+//             break;
+//
+//         case kTermEditorBottom:
+//             if(historyIndex > 0) {
+//                 historyIndex -= 1;
+//                 termEditorReplace(repl->history[historyIndex]);
+//             } else if(historyIndex == 0) {
+//                 historyIndex = -1;
+//                 termEditorReplace("");
+//             }
+//             break;
             
-        case kTermEditorBottom:
-            if(historyIndex > 0) {
-                historyIndex -= 1;
-                termEditorReplace(repl->history[historyIndex]);
-            } else if(historyIndex == 0) {
-                historyIndex = -1;
-                termEditorReplace("");
-            }
-            break;
-            
-        case kTermEditorReturn:
+        case KEY_RETURN:
             
             output = termEditorFlush();
             int length = strlen(output);
@@ -93,7 +91,7 @@ char* termREPL(TermREPL* repl, const char* prompt) {
             if(repl->historyCount > TERM_MAX_HISTORY) repl->historyCount = TERM_MAX_HISTORY;
             goto cleanup;
             
-        case kTermEditorOK:
+        default:
             break;
         }
     }

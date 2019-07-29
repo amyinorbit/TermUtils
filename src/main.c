@@ -12,7 +12,7 @@ int main(int argc, const char** argv) {
     termEditorInit("file.c");
     do {
         termEditorRender();
-    } while(termEditorUpdate() != kTermEditorDone);
+    } while(termEditorUpdate() != KEY_CTRL_D);
     
     char* data = termEditorFlush();
     termEditorDeinit();

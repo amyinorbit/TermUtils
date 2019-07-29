@@ -38,7 +38,7 @@
 static inline int getch(void) {
     int ch;
     int result = read(STDIN_FILENO, &ch, 1);
-    fprintf(stderr, "0x%02x\n", ch);
+    // fprintf(stderr, "0x%02x\n", ch);
     return result == 1 ? ch : -1;
 }
 

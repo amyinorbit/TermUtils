@@ -9,7 +9,6 @@
 //===--------------------------------------------------------------------------------------------===
 #include "editor.h"
 #include "shims.h"
-#include "editor_keys.h"
 #include <term/colors.h>
 #include <stdio.h>
 #include <string.h>
@@ -101,7 +100,7 @@ static inline void right(int n) {
 }
 
 static inline void left(int n) {
-    if(!E.cursor.x) return;
+    // if(!E.cursor.x) return;
     termLeft(n);
     E.cursor.x -= n;
 }
@@ -292,31 +291,26 @@ char* termEditorFlush() {
     return data;
 }
 
-static void scrollLeft(int over) {
-    int dist = 0;
-    while(dist < over) dist += 20;
-    dist = min(dist, E.offset.x);
+static void keepInView() {
+    int nx = tcols() - 4; // To account for the line number space
+    int ny = trows() - 2; // To account for the status bar
     
-    E.offset.x -= dist;
-    right(dist);
-}
-
-static void scrollRight(int over) {
-    int dist = 0;
-    while(dist < over) dist += 20;
+    if(E.cursor.x >= nx) {
+        E.offset.x += (E.cursor.x - nx);
+        E.cursor.x = nx;
+    } else if(E.cursor.x < 0) {
+        int dist = min(-E.cursor.x, E.offset.x);
+        E.offset.x -= dist;
+        E.cursor.x = 0;
+    }
     
-    E.offset.x += dist;
-    left(dist);
-}
-
-static void keepInViewX() {
-    int minX = 2;
-    int maxX = tcols() - (2 + 5);
-    
-    if(E.cursor.x > maxX) {
-        scrollRight(E.cursor.x - maxX);
-    } else if(E.offset.x && E.cursor.x < minX) {
-        scrollLeft(minX - E.cursor.x);
+    if(E.cursor.y >= ny) {
+        E.offset.y += (E.cursor.y - ny);
+        E.cursor.y = ny;
+    } else if(E.cursor.y < 0) {
+        int dist = min(-E.cursor.y, E.offset.y);
+        E.offset.y -= dist;
+        E.cursor.y = 0;
     }
 }
 
@@ -383,10 +377,9 @@ void termEditorRender() {
         E.cursor.y
     };
     
-    // the simple bit: we print the lines!
     for(int i = 0; i < ny-2; ++i) {
         printf("\033[%d;1H\033[2K", 1 + i);
-        int index = i - E.offset.y;
+        int index = i + E.offset.y;
         if(renderLineHead(index)) continue;
         EditorLine line = E.lines[index];
         
@@ -394,14 +387,13 @@ void termEditorRender() {
             printf("%.*s", min(line.count, nx - 4), &E.buffer[line.offset+E.offset.x]);
     }
     renderTitle(nx, ny);
-    // printf("\033[%d;")
     
     printf("\033[%d;%dH", screen.y+1, screen.x+1);
     fflush(stdout);
 }
 
 void termEditorLeft() {
-    if(E.cursor.x <= 0) return;
+    // if(E.cursor.x <= 0) return;
     left(1);
 }
 
@@ -468,13 +460,11 @@ static int getInput() {
     return -1;
 }
 
-EditorStatus termEditorUpdate() {
-    EditorStatus status = kTermEditorOK;
+EditorKey termEditorUpdate() {
     int c = getInput();
     switch(c) {
     case KEY_RETURN:
         editorNewline();
-        status = kTermEditorReturn;
         break;
         
     case KEY_DELETE:
@@ -486,16 +476,12 @@ EditorStatus termEditorUpdate() {
         break;
         
     case KEY_ARROW_UP:
-        if(E.cursor.y + E.offset.y == 0)
-            status = kTermEditorTop;
-        else
+        if(E.cursor.y + E.offset.y > 0)
             termEditorUp();
         break;
         
     case KEY_ARROW_DOWN:
-        if(E.cursor.y + E.offset.y == E.lineCount - 1)
-            status = kTermEditorTop;
-        else
+        if(E.cursor.y + E.offset.y < E.lineCount - 1)
             termEditorDown();
         break;
         
@@ -508,7 +494,10 @@ EditorStatus termEditorUpdate() {
         break;
         
     case KEY_CTRL_D:
-        return kTermEditorDone;
+        return KEY_CTRL_D;
+        
+    case KEY_CTRL_C:
+        break;
         
     case KEY_CTRL_S:
         E.title = "CTRL-S PRESSED";
@@ -518,7 +507,7 @@ EditorStatus termEditorUpdate() {
         editorInsert(c);
         break;
     }
-    keepInViewX();
-    return status;
+    keepInView();
+    return c;
 }
 
