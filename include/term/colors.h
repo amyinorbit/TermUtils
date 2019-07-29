@@ -22,6 +22,14 @@ typedef enum {
     kTermCyan,
     kTermWhite,
     kTermDefault,
+    kTermBrightBlack,
+    kTermBrightRed,
+    kTermBrightGreen,
+    kTermBrightYellow,
+    kTermBrightBlue,
+    kTermBrightMagenta,
+    kTermBrightCyan,
+    kTermBrightWhite,
     kTermInvalidColor,
 } TermColor;
 

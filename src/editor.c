@@ -27,8 +27,7 @@ typedef struct {
 } Coords;
 
 typedef struct Editor {
-    const char* prompt;
-    int promptLength;
+    const char* title;
     
     Coords cursor;
     Coords offset;
@@ -211,12 +210,11 @@ static void editorNewline() {
 
 // MARK: - "public" API
 
-void termEditorInit(const char* prompt) {
+void termEditorInit(const char* title) {
     E.cursor = (Coords){0, 0};
     E.offset = (Coords){0, 0};
     
-    E.prompt = prompt;
-    E.promptLength = strlen(prompt);
+    E.title = title;
     
     E.lineCount = 1;
     E.lineCapacity = 0;
@@ -236,8 +234,7 @@ void termEditorDeinit() {
     E.lineCount = E.lineCapacity = 0;
     E.buffer = NULL;
     E.count = E.capacity = 0;
-    E.prompt = "";
-    E.promptLength = 0;
+    E.title = "";
     E.cursor = (Coords){0, 0};
     E.offset = (Coords){0, 0};
 }
@@ -269,37 +266,13 @@ static void scrollRight(int over) {
 
 static void keepInViewX() {
     int minX = 2;
-    int maxX = tcols() - (E.promptLength + 2);
+    int maxX = tcols() - 2;
     
     if(E.cursor.x > maxX) {
         scrollRight(E.cursor.x - maxX);
     } else if(E.offset.x && E.cursor.x < minX) {
         scrollLeft(minX - E.cursor.x);
     }
-}
-
-static void termEditorCLS() {
-    int ny = min(trows(), 10);
-    
-    Coords screen = (Coords){
-        E.promptLength + E.cursor.x,
-        E.cursor.y - E.offset.y
-    };
-    
-    Coords current = (Coords){0, 0};
-    
-    termLeft(screen.x);
-    termUp(screen.y);
-    
-    for(int i = E.offset.y; i < min(E.lineCount + 1, ny); ++i) {
-        termClearLine();
-        putchar('\n');
-        current.y += 1;
-    }
-    
-    termLeft(current.x);
-    termUp(current.y);
-    fflush(stdout);
 }
 
 // TODO: this isn't really the nicest way to do things, we could probably memcpy a lot of this.
@@ -313,7 +286,6 @@ void termEditorReplace(const char* data) {
 }
 
 void termEditorClear() {
-    termEditorCLS();
     E.cursor.x = 0;
     E.cursor.y = 0;
     E.offset.x = 0;
@@ -324,6 +296,20 @@ void termEditorClear() {
     }
     E.count = 0;
     E.lineCount = 1;
+}
+
+static void renderTitle(int nx, int ny) {
+    
+    int c = E.cursor.x + E.offset.x + 1, r= E.cursor.y + E.offset.y + 1;
+    
+    char locBuffer[16];
+    snprintf(locBuffer, 16, "(%d, %d)", c, r);
+    
+    termColorBG(stdout, kTermBrightWhite);
+    termColorFG(stdout, kTermBrightBlack);
+    int titleLength = printf("  %s", E.title);
+    printf("%*s  \n\n", (nx - titleLength - 2), locBuffer);
+    termReset(stdout);
 }
 
 void termEditorRender() {
@@ -337,17 +323,13 @@ void termEditorRender() {
     
     Coords screen = (Coords){
         E.cursor.x + 4,
-        E.cursor.y + 1 // For the prompt line at the top
+        E.cursor.y + 2 // For the title line at the top
     };
     
-    termColorBG(stdout, kTermBlack);
-    termColorFG(stdout, kTermBlue);
-    termBold(stdout, true);
-    printf("%-*s\n", nx, E.prompt);
-    termReset(stdout);
+    renderTitle(nx, ny);
     
     // the simple bit: we print the lines!
-    for(int i = E.offset.y; i < min(E.lineCount, ny-1); ++i) {
+    for(int i = E.offset.y; i < min(E.lineCount, ny-2); ++i) {
         
         EditorLine line = E.lines[i];
         
@@ -468,6 +450,9 @@ EditorStatus termEditorUpdate() {
     case KEY_ARROW_LEFT:
         termEditorLeft();
         break;
+        
+    case KEY_CTRL_D:
+        return kTermEditorDone;
         
     default:
         editorInsert(c);

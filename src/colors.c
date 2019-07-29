@@ -27,6 +27,14 @@ static const char* _fgColors[] = {
     [kTermCyan] = "\033[36m",
     [kTermWhite] = "\033[37m",
     [kTermDefault] = "\033[39m",
+    [kTermBrightBlack] = "\033[30;1m",
+    [kTermBrightRed] = "\033[31;1m",
+    [kTermBrightGreen] = "\033[32;1m",
+    [kTermBrightYellow] = "\033[33;1m",
+    [kTermBrightBlue] = "\033[34;1m",
+    [kTermBrightMagenta] = "\033[35;1m",
+    [kTermBrightCyan] = "\033[36;1m",
+    [kTermBrightWhite] = "\033[37m",
     [kTermInvalidColor]  = "",
 };
 
@@ -40,6 +48,14 @@ static const char* _bgColors[] = {
     [kTermCyan] = "\033[46m",
     [kTermWhite] = "\033[47m",
     [kTermDefault] = "\033[49m",
+    [kTermBrightBlack] = "\033[40;1m",
+    [kTermBrightRed] = "\033[41;1m",
+    [kTermBrightGreen] = "\033[42;1m",
+    [kTermBrightYellow] = "\033[43;1m",
+    [kTermBrightBlue] = "\033[44;1m",
+    [kTermBrightMagenta] = "\033[45;1m",
+    [kTermBrightCyan] = "\033[46;1m",
+    [kTermBrightWhite] = "\033[47;1m",
     [kTermInvalidColor]  = "",
 };
 

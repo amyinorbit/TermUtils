@@ -24,6 +24,11 @@ typedef enum {
 void termEditorInit(const char* prompt);
 void termEditorDeinit();
 
+// Prints a message in the console half of the editor (bottom lines?)
+
+void termEditorSetTitle(const char* title);
+void termEditorOut(const char* message);
+
 char* termEditorFlush();
 
 void termEditorLeft();
