@@ -21,9 +21,15 @@ typedef struct EditorLine {
     int count;
 } EditorLine;
 
-typedef struct {
+typedef struct Coords {
     int x, y;
 } Coords;
+
+typedef struct Token {
+    int line;
+    int column;
+    int length;
+} Token;
 
 typedef struct Editor {
     const char* title;
@@ -34,6 +40,8 @@ typedef struct Editor {
     int lineCount;
     int lineCapacity;
     EditorLine* lines;
+    
+    Token highlight;
     
     char* buffer;
     int count;
@@ -81,29 +89,8 @@ void stopRawMode() {
 #endif
 }
 
-
 static inline int min(int a, int b) { return a < b ? a : b; }
-
-static inline void up(int n) {
-    termUp(n);
-    E.cursor.y -= n;
-}
-
-static inline void down(int n) {
-    termDown(n);
-    E.cursor.y += n;
-}
-
-static inline void right(int n) {
-    termRight(n);
-    E.cursor.x += n;
-}
-
-static inline void left(int n) {
-    // if(!E.cursor.x) return;
-    termLeft(n);
-    E.cursor.x -= n;
-}
+static inline int max(int a, int b) { return a > b ? a : b; }
 
 static void ensureLines(int count) {
     if(count <= E.lineCapacity) return;
@@ -186,8 +173,8 @@ static void editorBackspace() {
         erase(offset);
         
         EditorLine* prev = &E.lines[y-1];
-        right(prev->count);
-        up(1);
+        E.cursor.x += prev->count;
+        E.cursor.y -= 1;
         prev->count += line->count;
         
         E.lineCount -= 1;
@@ -198,7 +185,7 @@ static void editorBackspace() {
     } else {
         erase(offset);
         line->count -= 1;
-        left(1);
+        E.cursor.x -= 1;
     }
     for(int i = (E.offset.y + E.cursor.y)+1; i < E.lineCount; ++i) E.lines[i].offset -= 1;
 }
@@ -210,7 +197,7 @@ static void editorInsert(char c) {
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
     insert(offset, c);
-    right(1);
+    E.cursor.x += 1;
     
     // Then we need to move lines. The only things that change are offsets
     // (and count for the current line)
@@ -243,9 +230,6 @@ static void editorNewline() {
     E.cursor.x = 0;
     E.cursor.y += 1;
     E.offset.x = 0;
-    // printf("\033[%d;5H", 1 + E.cursor.y - E.offset.y);
-    
-    // putchar('\n');
 }
 
 // MARK: - "public" API
@@ -267,6 +251,8 @@ void termEditorInit(const char* title) {
     E.lines[0] = (EditorLine){.count = 0, .offset = 0};
     startRawMode();
     printf("\033[?1049h");
+    
+    E.highlight = (Token){-1, -1, -1};
 }
 
 void termEditorDeinit() {
@@ -292,10 +278,10 @@ char* termEditorFlush() {
 }
 
 static void keepInView() {
-    int nx = tcols() - 4; // To account for the line number space
-    int ny = trows() - 2; // To account for the status bar
+    int nx = tcols() - 5; // To account for the line number space
+    int ny = trows() - 3; // To account for the status bar
     
-    if(E.cursor.x >= nx) {
+    if(E.cursor.x > nx) {
         E.offset.x += (E.cursor.x - nx);
         E.cursor.x = nx;
     } else if(E.cursor.x < 0) {
@@ -304,7 +290,7 @@ static void keepInView() {
         E.cursor.x = 0;
     }
     
-    if(E.cursor.y >= ny) {
+    if(E.cursor.y > ny) {
         E.offset.y += (E.cursor.y - ny);
         E.cursor.y = ny;
     } else if(E.cursor.y < 0) {
@@ -356,7 +342,7 @@ static bool renderLineHead(int l) {
     bool done = false;
     termColorFG(stdout, kTermBlue);
     if(l < E.lineCount) {
-        printf("%3d ", l + E.offset.y + 1);
+        printf("%3d ", l + 1);
         done = false;
     } else {
         printf("  ~ ");
@@ -364,6 +350,36 @@ static bool renderLineHead(int l) {
     }
     termColorFG(stdout, kTermDefault);
     return done;
+}
+
+static void printLine(int i, int nx, int ny) {
+    printf("\033[%d;1H\033[2K", 1 + i);
+    int index = i + E.offset.y;
+    if(renderLineHead(index)) return;
+    EditorLine line = E.lines[index];
+    
+    if(!line.count || line.count <= E.offset.x) return;
+    
+    int startHL = (E.highlight.column - 1);
+    int endHL = (E.highlight.column + E.highlight.length - 1);
+    
+    for(int i = 0; i < nx - 4; ++i) {
+        int idx = i + E.offset.x;
+        if(idx == line.count) break;
+        if(idx == startHL && index == E.highlight.line-1) {
+            termUnderline(stdout, true);
+            termBold(stdout, true);
+            termColorFG(stdout, kTermRed);
+            // printf("\033[7m");
+        }
+        putchar(E.buffer[line.offset + idx]);
+        if(idx == endHL && index == E.highlight.line-1) {
+            termReset(stdout);
+        }
+    }
+    
+    termReset(stdout);
+    
 }
 
 void termEditorRender() {
@@ -377,15 +393,7 @@ void termEditorRender() {
         E.cursor.y
     };
     
-    for(int i = 0; i < ny-2; ++i) {
-        printf("\033[%d;1H\033[2K", 1 + i);
-        int index = i + E.offset.y;
-        if(renderLineHead(index)) continue;
-        EditorLine line = E.lines[index];
-        
-        if(line.count && line.count > E.offset.x) 
-            printf("%.*s", min(line.count, nx - 4), &E.buffer[line.offset+E.offset.x]);
-    }
+    for(int i = 0; i < ny-2; ++i) printLine(i, nx, ny);
     renderTitle(nx, ny);
     
     printf("\033[%d;%dH", screen.y+1, screen.x+1);
@@ -393,29 +401,26 @@ void termEditorRender() {
 }
 
 void termEditorLeft() {
-    // if(E.cursor.x <= 0) return;
-    left(1);
+    E.cursor.x -= 1;
 }
 
 void termEditorRight() {
     if(E.cursor.x + E.offset.x >= E.lines[E.cursor.y].count) return;
-    right(1);
+    E.cursor.x += 1;
 }
 
 void termEditorUp() {
-    up(1);
-    
+    E.cursor.y -= 1;
     int max = E.lines[E.cursor.y].count;
     if(E.cursor.x <= max) return;
-    left(E.cursor.x - max);
+    E.cursor.x = max;
 }
 
 void termEditorDown() {
-    down(1);
-    
+    E.cursor.y += 1;
     int max = E.lines[E.cursor.y].count;
     if(E.cursor.x <= max) return;
-    left(E.cursor.x - max);
+    E.cursor.x = max;
 }
 
 #define CTRL_KEYPRESS(k) ((k)  & 0x1f)
