@@ -405,20 +405,20 @@ void termEditorLeft() {
 }
 
 void termEditorRight() {
-    if(E.cursor.x + E.offset.x >= E.lines[E.cursor.y].count) return;
+    if(E.cursor.x + E.offset.x >= E.lines[E.cursor.y + E.offset.y].count) return;
     E.cursor.x += 1;
 }
 
 void termEditorUp() {
     E.cursor.y -= 1;
-    int max = E.lines[E.cursor.y].count;
+    int max = E.lines[E.cursor.y + E.offset.y].count;
     if(E.cursor.x <= max) return;
     E.cursor.x = max;
 }
 
 void termEditorDown() {
     E.cursor.y += 1;
-    int max = E.lines[E.cursor.y].count;
+    int max = E.lines[E.cursor.y + E.offset.y].count;
     if(E.cursor.x <= max) return;
     E.cursor.x = max;
 }
