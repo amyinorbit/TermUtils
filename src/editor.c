@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 typedef struct EditorLine {
     int offset;
@@ -46,6 +47,8 @@ typedef struct Editor {
     char* buffer;
     int count;
     int capacity;
+    
+    char* message;
 } Editor;
 static Editor E;
 
@@ -252,6 +255,8 @@ void termEditorInit(const char* title) {
     startRawMode();
     printf("\033[?1049h");
     
+    E.message = malloc(1024);
+    E.message[0] = '\0';
     E.highlight = (Token){-1, -1, -1};
 }
 
@@ -260,11 +265,13 @@ void termEditorDeinit() {
     printf("\033[?1049l");
     if(E.buffer) free(E.buffer);
     if(E.lines) free(E.lines);
+    if(E.message) free(E.message);
     E.lines = NULL;
     E.lineCount = E.lineCapacity = 0;
     E.buffer = NULL;
     E.count = E.capacity = 0;
     E.title = "";
+    E.message = NULL;
     E.cursor = (Coords){0, 0};
     E.offset = (Coords){0, 0};
 }
@@ -343,6 +350,15 @@ static void renderTitle(int nx, int ny) {
     termReset(stdout);
 }
 
+static void renderMessage(int nx, int ny) {
+    int length = strlen(E.message);
+    if(!length) return;
+    printf("\033[%d;1H", ny);
+    termBold(stdout, true);
+    printf("> %.*s", min(nx - 2, strlen(E.message)), E.message);
+    termReset(stdout);
+}
+
 static bool renderLineHead(int l) {
     bool done = false;
     termColorFG(stdout, kTermBlue);
@@ -357,7 +373,7 @@ static bool renderLineHead(int l) {
     return done;
 }
 
-static void printLine(int i, int nx, int ny) {
+static void renderLine(int i, int nx, int ny) {
     printf("\033[%d;1H\033[2K", 1 + i);
     int index = i + E.offset.y;
     if(renderLineHead(index)) return;
@@ -398,8 +414,9 @@ void termEditorRender() {
         E.cursor.y
     };
     
-    for(int i = 0; i < ny-2; ++i) printLine(i, nx, ny);
+    for(int i = 0; i < ny-2; ++i) renderLine(i, nx, ny);
     renderTitle(nx, ny);
+    renderMessage(nx, ny);
     
     printf("\033[%d;%dH", screen.y+1, screen.x+1);
     fflush(stdout);
@@ -428,25 +445,20 @@ void termEditorDown() {
     E.cursor.x = max;
 }
 
-#define CTRL_KEYPRESS(k) ((k)  & 0x1f)
 static int getInput() {
     // Buffer for our input. We need that for extended escapes
-    char buf[3];
+    int buf[3];
     
     char c = getch();
     switch(c) {
-        
-    case CTRL('s'):
-        return KEY_CTRL_S;
-        
     case KEY_ESC:
-        buf[0] = getch();
-        buf[1] = getch();
+        if((buf[0] = getch()) < 0) return KEY_ESC;
+        if((buf[1] = getch()) < 0) return KEY_ESC;
         
         if(buf[0] == '[') {
             // If we have a digit, then we have an extended escape sequence
             if(isnumber(buf[1])) {
-                buf[2] = getch();
+                if((buf[2] = getch()) < 0) return KEY_ESC;
                 if(buf[2] == '~') {
                     switch(buf[1]) {
                         case '3': return KEY_DELETE;
@@ -468,6 +480,13 @@ static int getInput() {
         return c;
     }
     return -1;
+}
+
+void termEditorOut(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(E.message, 1024, fmt, args);
+    va_end(args);
 }
 
 EditorKey termEditorUpdate() {

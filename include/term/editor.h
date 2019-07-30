@@ -20,6 +20,7 @@ typedef enum {
     KEY_TAB         = 0x09,
     KEY_CTRL_L      = 0x0c,
     KEY_RETURN      = 0x0d,
+    KEY_CTRL_Q      = 0x11,
     KEY_CTRL_S      = 0x13,
     KEY_ESC         = 0x1b,
     KEY_BACKSPACE   = 0x7f,
@@ -41,7 +42,7 @@ void termEditorDeinit();
 // Prints a message in the console half of the editor (bottom lines?)
 
 void termEditorSetTitle(const char* title);
-void termEditorOut(const char* message);
+void termEditorOut(const char* fmt, ...);
 
 char* termEditorFlush();
 const char* termEditorBuffer(int* length);
