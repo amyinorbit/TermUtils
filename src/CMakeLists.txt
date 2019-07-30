@@ -1,4 +1,13 @@
-add_library(TermUtils STATIC arg_parsing.c arg_printing.c arg_utils.c colors.c printing.c repl.c editor.c)
+add_library(TermUtils STATIC
+    arg_parsing.c
+    arg_printing.c
+    arg_utils.c
+    colors.c
+    printing.c
+    repl.c
+    editor.c
+    hexes.c
+)
 target_include_directories(TermUtils PUBLIC ${PROJECT_SOURCE_DIR}/include)
 install(TARGETS TermUtils ARCHIVE DESTINATION lib)
 

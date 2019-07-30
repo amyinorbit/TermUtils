@@ -1,5 +1,5 @@
 //===--------------------------------------------------------------------------------------------===
-// colors.h - color and formatting support for 
+// colors.h - color and formatting support for
 // This source is part of TermUtils
 //
 // Created on 2019-07-10 by Amy Parent <amy@amyparent.com>
@@ -40,6 +40,7 @@ void termUnderline(FILE* term, bool underline);
 
 void termColorFG(FILE* term, TermColor color);
 void termColorBG(FILE* term, TermColor color);
+void termColorReverse(FILE* term);
 
 void termReset(FILE* term);
 

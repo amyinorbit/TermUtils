@@ -1,5 +1,5 @@
 //===--------------------------------------------------------------------------------------------===
-// colors.c - color and formatting support for 
+// colors.c - color and formatting support for
 // This source is part of TermUtils
 //
 // Created on 2019-07-10 by Amy Parent <amy@amyparent.com>
@@ -90,6 +90,11 @@ void termColorBG(FILE* term, TermColor color) {
     if(!termHasColors(term)) return;
     assert(color >= kTermBlack && color < kTermInvalidColor);
     fprintf(term, "%s", _bgColors[color]);
+}
+
+void termColorReverse(FILE* term) {
+    if(!termHasColors(term)) return;
+    fprintf(term, "\033[7m");
 }
 
 void termReset(FILE* term) {

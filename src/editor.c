@@ -9,7 +9,7 @@
 //===--------------------------------------------------------------------------------------------===
 #include <term/editor.h>
 #include <term/colors.h>
-#include "shims.h"
+#include <term/hexes.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -53,48 +53,7 @@ typedef struct Editor {
 } Editor;
 static Editor E;
 
-#ifndef _WIN32
-static struct termios savedTerm;
-#endif
-
-void startRawMode() {
-#ifdef _WIN32
-#else
-    struct termios raw;
-
-    if (!isatty(STDIN_FILENO)) return;
-    // atexit(editorAtExit);
-    if (tcgetattr(STDIN_FILENO,&savedTerm) == -1) return;
-
-    raw = savedTerm;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - echoing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    /* control chars - set return condition: min number of bytes and timer. */
-    // raw.c_cc[VMIN] = 0; /* Return each byte, or zero for timeout. */
-    // raw.c_cc[VTIME] = 1; /* 100 ms timeout (unit is tens of second). */
-
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw) < 0) return;
-#endif
-}
-
-void stopRawMode() {
-#ifdef _WIN32
-#else
-    tcsetattr(STDIN_FILENO,TCSAFLUSH,&savedTerm);
-#endif
-}
-
 static inline int min(int a, int b) { return a < b ? a : b; }
-static inline int max(int a, int b) { return a > b ? a : b; }
 
 static void ensureLines(int count) {
     if(count <= E.lineCapacity) return;
@@ -160,7 +119,6 @@ static void editorDEL() {
 }
 
 static void editorBackspace() {
-    // TODO: implementation
     int x = E.offset.x + E.cursor.x;
     int y = E.offset.y + E.cursor.y;
 
@@ -206,7 +164,6 @@ static void editorInsert(char c) {
     // Then we need to move lines. The only things that change are offsets
     // (and count for the current line)
     line->count += 1;
-
     for(int i = y+1; i < E.lineCount; ++i) E.lines[i].offset += 1;
 }
 
@@ -253,18 +210,20 @@ void termEditorInit(const char* title) {
     E.buffer = NULL;
 
     E.lines[0] = (EditorLine){.count = 0, .offset = 0};
-    startRawMode();
-    printf("\033[?1049h");
 
     E.status = "";
     E.message = malloc(1024);
     E.message[0] = '\0';
     E.highlight = (Token){-1, -1, -1};
+
+    hexesStartRawMode();
+    hexesScreenAlternate(true);
 }
 
 void termEditorDeinit() {
-    stopRawMode();
-    printf("\033[?1049l");
+    hexesStopRawMode();
+    hexesScreenAlternate(false);
+
     if(E.buffer) free(E.buffer);
     if(E.lines) free(E.lines);
     if(E.message) free(E.message);
@@ -292,8 +251,10 @@ const char* termEditorBuffer(int* length) {
 }
 
 static void keepInView() {
-    int nx = tcols() - 5; // To account for the line number space
-    int ny = trows() - 3; // To account for the status bar
+    int nx = 0, ny = 0;
+    assert(hexesGetSize(&nx, &ny) == 0);
+    nx -= 5; // To account for the line number space
+    ny -= 3; // To account for the status bar
 
     if(E.cursor.x > nx) {
         E.offset.x += (E.cursor.x - nx);
@@ -347,27 +308,24 @@ static void renderTitle(int nx, int ny) {
     int c = E.cursor.x + E.offset.x + 1, r= E.cursor.y + E.offset.y + 1;
 
     char locBuffer[16];
-    int locLength = snprintf(locBuffer, 16, " | (%d, %d)  ", c, r);
-
+    int locLength = snprintf(locBuffer, 16, " (%d, %d)  ", c, r);
 
     termColorFG(stdout, kTermBlue);
-    printf("\033[%d;1H", ny - 1);
-    printf("\033[7m");
+    hexesCursorGo(0, ny-2);
+    termColorReverse(stdout);
     int titleLength = printf("  %s | ", E.title);
 
 
     int statusLength = E.status ? min(nx - (titleLength + locLength), (int)strlen(E.status)) : 0;
     int locPad = nx - (titleLength + statusLength);
     printf("%.*s%*s", statusLength, E.status ? E.status : "", locPad, locBuffer);
-
-    // printf("%*s  ", (nx - titleLength), locBuffer);
     termReset(stdout);
 }
 
 static void renderMessage(int nx, int ny) {
     int length = strlen(E.message);
     if(!length) return;
-    printf("\033[%d;1H", ny);
+    hexesCursorGo(0, ny-1);
     termBold(stdout, true);
     printf("> %.*s", min(nx - 2, strlen(E.message)), E.message);
     termReset(stdout);
@@ -388,7 +346,8 @@ static bool renderLineHead(int l) {
 }
 
 static void renderLine(int i, int nx, int ny) {
-    printf("\033[%d;1H\033[2K", 1 + i);
+    hexesCursorGo(0, i);
+    hexesClearLine();
     int index = i + E.offset.y;
     if(renderLineHead(index)) return;
     EditorLine line = E.lines[index];
@@ -405,7 +364,6 @@ static void renderLine(int i, int nx, int ny) {
             termUnderline(stdout, true);
             termBold(stdout, true);
             termColorFG(stdout, kTermRed);
-            // printf("\033[7m");
         }
         putchar(E.buffer[line.offset + idx]);
         if(idx == endHL && index == E.highlight.line-1) {
@@ -418,10 +376,9 @@ static void renderLine(int i, int nx, int ny) {
 }
 
 void termEditorRender() {
-
-    int nx = tcols();
-    int ny = trows();
-    printf("\033[H");
+    int nx = 0, ny = 0;
+    assert(hexesGetSize(&nx, &ny) == 0);
+    hexesCursorGo(0, 0);
 
     Coords screen = (Coords){
         E.cursor.x + 4,
@@ -432,7 +389,7 @@ void termEditorRender() {
     renderTitle(nx, ny);
     renderMessage(nx, ny);
 
-    printf("\033[%d;%dH", screen.y+1, screen.x+1);
+    hexesCursorGo(screen.x, screen.y);
     fflush(stdout);
 }
 
@@ -459,43 +416,6 @@ void termEditorDown() {
     E.cursor.x = max;
 }
 
-static int getInput() {
-    // Buffer for our input. We need that for extended escapes
-    int buf[3];
-
-    char c = getch();
-    switch(c) {
-    case KEY_ESC:
-        if((buf[0] = getch()) < 0) return KEY_ESC;
-        if((buf[1] = getch()) < 0) return KEY_ESC;
-
-        if(buf[0] == '[') {
-            // If we have a digit, then we have an extended escape sequence
-            if(isdigit(buf[1])) {
-                if((buf[2] = getch()) < 0) return KEY_ESC;
-                if(buf[2] == '~') {
-                    switch(buf[1]) {
-                        case '3': return KEY_DELETE;
-                        case '5': return KEY_PAGE_UP;
-                        case '6': return KEY_PAGE_DOWN;
-                    }
-                }
-            } else {
-                switch(buf[1]) {
-                    case 'A': return KEY_ARROW_UP;
-                    case 'B': return KEY_ARROW_DOWN;
-                    case 'C': return KEY_ARROW_RIGHT;
-                    case 'D': return KEY_ARROW_LEFT;
-                }
-            }
-        }
-        break;
-    default:
-        return c;
-    }
-    return -1;
-}
-
 void termEditorStatus(const char* status) {
     E.status = status;
 }
@@ -507,13 +427,12 @@ void termEditorOut(const char* fmt, ...) {
     va_end(args);
 }
 
-
 void termEditorInsert(char c) {
     editorInsert(c);
 }
 
-EditorKey termEditorUpdate() {
-    int c = getInput();
+HexesKey termEditorUpdate() {
+    int c = hexesGetKeyRaw();
     switch(c) {
     case KEY_RETURN:
         editorNewline();
