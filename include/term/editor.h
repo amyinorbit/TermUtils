@@ -41,7 +41,7 @@ void termEditorDeinit();
 
 // Prints a message in the console half of the editor (bottom lines?)
 
-void termEditorSetTitle(const char* title);
+void termEditorStatus(const char* title);
 void termEditorOut(const char* fmt, ...);
 
 char* termEditorFlush();
@@ -55,6 +55,7 @@ void termEditorDown();
 void termEditorReplace(const char* data);
 void termEditorClear();
 void termEditorRender();
+void termEditorInsert(char c);
 EditorKey termEditorUpdate();
 
 

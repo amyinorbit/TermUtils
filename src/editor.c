@@ -48,6 +48,7 @@ typedef struct Editor {
     int count;
     int capacity;
     
+    const char* status;
     char* message;
 } Editor;
 static Editor E;
@@ -255,6 +256,7 @@ void termEditorInit(const char* title) {
     startRawMode();
     printf("\033[?1049h");
     
+    E.status = "";
     E.message = malloc(1024);
     E.message[0] = '\0';
     E.highlight = (Token){-1, -1, -1};
@@ -340,13 +342,20 @@ static void renderTitle(int nx, int ny) {
     int c = E.cursor.x + E.offset.x + 1, r= E.cursor.y + E.offset.y + 1;
     
     char locBuffer[16];
-    snprintf(locBuffer, 16, "(%d, %d)", c, r);
+    int locLength = snprintf(locBuffer, 16, " | (%d, %d)  ", c, r);
+    
     
     termColorFG(stdout, kTermBlue);
     printf("\033[%d;1H", ny - 1);
     printf("\033[7m");
-    int titleLength = printf("  %s", E.title);
-    printf("%*s  ", (nx - titleLength - 2), locBuffer);
+    int titleLength = printf("  %s | ", E.title);
+    
+    
+    int statusLength = E.status ? min(nx - (titleLength + locLength), (int)strlen(E.status)) : 0;
+    int locPad = nx - (titleLength + statusLength);
+    printf("%.*s%*s", statusLength, E.status ? E.status : "", locPad, locBuffer);
+    
+    // printf("%*s  ", (nx - titleLength), locBuffer);
     termReset(stdout);
 }
 
@@ -482,11 +491,20 @@ static int getInput() {
     return -1;
 }
 
+void termEditorStatus(const char* status) {
+    E.status = status;
+}
+
 void termEditorOut(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     vsnprintf(E.message, 1024, fmt, args);
     va_end(args);
+}
+
+
+void termEditorInsert(char c) {
+    editorInsert(c);
 }
 
 EditorKey termEditorUpdate() {
@@ -527,6 +545,7 @@ EditorKey termEditorUpdate() {
         
     case KEY_CTRL_C:
     case KEY_CTRL_S:
+    case KEY_CTRL_Q:
         break;
         
     default:
