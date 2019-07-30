@@ -44,6 +44,7 @@ void termEditorSetTitle(const char* title);
 void termEditorOut(const char* message);
 
 char* termEditorFlush();
+const char* termEditorBuffer(int* length);
 
 void termEditorLeft();
 void termEditorRight();

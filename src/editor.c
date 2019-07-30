@@ -277,6 +277,11 @@ char* termEditorFlush() {
     return data;
 }
 
+const char* termEditorBuffer(int* length) {
+    if(length) *length = E.count;
+    return E.buffer;
+}
+
 static void keepInView() {
     int nx = tcols() - 5; // To account for the line number space
     int ny = trows() - 3; // To account for the status bar
