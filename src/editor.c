@@ -465,8 +465,7 @@ HexesKey termEditorUpdate() {
         break;
 
     case KEY_CTRL_D:
-        return KEY_CTRL_D;
-
+    case KEY_TAB:
     case KEY_CTRL_C:
     case KEY_CTRL_S:
     case KEY_CTRL_Q:
