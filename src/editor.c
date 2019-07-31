@@ -10,6 +10,7 @@
 #include <term/editor.h>
 #include <term/colors.h>
 #include <term/hexes.h>
+#include "string.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -43,10 +44,8 @@ typedef struct Editor {
     EditorLine* lines;
 
     Token highlight;
-
-    char* buffer;
-    int count;
-    int capacity;
+    
+    String buffer;
 
     const char* status;
     char* message;
@@ -62,32 +61,6 @@ static void ensureLines(int count) {
     E.lines = realloc(E.lines, E.lineCapacity * sizeof(EditorLine));
 }
 
-static void ensureBuffer(int count) {
-    count += 1; // To account for the trailing \0
-    if(count <= E.capacity) return;
-    while(E.capacity < count)
-        E.capacity = E.capacity ? E.capacity * 2 : 256;
-    E.buffer = realloc(E.buffer, E.capacity * sizeof(char));
-}
-
-static inline void insert(int offset, char c) {
-    assert(offset <= E.count && "Invalid insertion offset");
-    ensureBuffer(E.count + 1);
-    int moveCount = E.count - offset;
-    memmove(&E.buffer[offset+1], &E.buffer[offset], moveCount * sizeof(char));
-    E.buffer[offset] = c;
-    E.count += 1;
-    E.buffer[E.count] = '\0';
-}
-
-static inline void erase(int offset) {
-    assert(offset <= E.count && "Invalid insertion offset");
-    int moveCount = E.count - (offset + 1);
-    memmove(&E.buffer[offset], &E.buffer[offset+1], moveCount * sizeof(char));
-    E.count -= 1;
-    E.buffer[E.count] = '\0';
-}
-
 static void editorDEL() {
     int x = E.offset.x + E.cursor.x;
     int y = E.offset.y + E.cursor.y;
@@ -95,14 +68,14 @@ static void editorDEL() {
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
 
-    if(offset >= E.count) return;
+    if(offset >= E.buffer.count) return;
 
-    char tbd = E.buffer[offset];
+    char tbd = E.buffer.data[offset];
 
     if(tbd == '\n') {
         assert(y < E.lineCount - 1 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == line->count && "We should be at the end of the line");
-        erase(offset);
+        stringErase(&E.buffer, offset, 1);
 
         EditorLine* next = &E.lines[y+1];
         line->count += next->count;
@@ -112,7 +85,7 @@ static void editorDEL() {
             E.lines[i] = E.lines[i+1];
         }
     } else {
-        erase(offset);
+        stringErase(&E.buffer, offset, 1);
         line->count -= 1;
     }
     for(int i = (E.offset.y + E.cursor.y)+1; i < E.lineCount; ++i) E.lines[i].offset -= 1;
@@ -127,12 +100,12 @@ static void editorBackspace() {
 
     if(offset < 0) return;
 
-    char tbd = E.buffer[offset];
+    char tbd = E.buffer.data[offset];
 
     if(tbd == '\n') {
         assert(y > 0 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == 0 && "We should be at the start of the line");
-        erase(offset);
+        stringErase(&E.buffer, offset, 1);
 
         EditorLine* prev = &E.lines[y-1];
         E.cursor.x += prev->count;
@@ -145,7 +118,7 @@ static void editorBackspace() {
         }
 
     } else {
-        erase(offset);
+        stringErase(&E.buffer, offset, 1);
         line->count -= 1;
         E.cursor.x -= 1;
     }
@@ -158,7 +131,7 @@ static void editorInsert(char c) {
 
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    insert(offset, c);
+    stringInsert(&E.buffer, offset, c);
     E.cursor.x += 1;
 
     // Then we need to move lines. The only things that change are offsets
@@ -167,7 +140,6 @@ static void editorInsert(char c) {
     for(int i = y+1; i < E.lineCount; ++i) E.lines[i].offset += 1;
 }
 
-// TODO: Don't memmove here -- we need to keep the oldcount to, well, the old one
 static void editorNewline() {
     ensureLines(E.lineCount + 1);
     int x = E.offset.x + E.cursor.x;
@@ -175,8 +147,7 @@ static void editorNewline() {
 
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    insert(offset, '\n');
-
+    stringInsert(&E.buffer, offset, '\n');
 
     EditorLine next = (EditorLine){.offset=line->offset + x + 1, .count=line->count - x};
     line->count = x;
@@ -205,9 +176,7 @@ void termEditorInit(const char* title) {
     E.lineCapacity = 0;
     ensureLines(1);
 
-    E.count = 0;
-    E.capacity = 0;
-    E.buffer = NULL;
+    stringInit(&E.buffer);
 
     E.lines[0] = (EditorLine){.count = 0, .offset = 0};
 
@@ -223,14 +192,13 @@ void termEditorInit(const char* title) {
 void termEditorDeinit() {
     hexesStopRawMode();
     hexesScreenAlternate(false);
-
-    if(E.buffer) free(E.buffer);
+    stringDeinit(&E.buffer);
+    
     if(E.lines) free(E.lines);
     if(E.message) free(E.message);
     E.lines = NULL;
     E.lineCount = E.lineCapacity = 0;
-    E.buffer = NULL;
-    E.count = E.capacity = 0;
+    
     E.title = "";
     E.message = NULL;
     E.cursor = (Coords){0, 0};
@@ -238,16 +206,16 @@ void termEditorDeinit() {
 }
 
 char* termEditorFlush() {
-    char* data = E.buffer;
-    E.buffer = NULL;
-    E.count = 0;
-    E.capacity = 0;
+    char* data = E.buffer.data;
+    E.buffer.data = NULL;
+    E.buffer.count = 0;
+    E.buffer.capacity = 0;
     return data;
 }
 
 const char* termEditorBuffer(int* length) {
-    if(length) *length = E.count;
-    return E.buffer;
+    if(length) *length = E.buffer.count;
+    return E.buffer.data;
 }
 
 static void keepInView() {
@@ -299,7 +267,7 @@ void termEditorClear() {
     for(int i = 0; i < E.lineCount; ++i) {
         E.lines[i].count = 0;
     }
-    E.count = 0;
+    E.buffer.count = 0;
     E.lineCount = 1;
 }
 
@@ -365,7 +333,7 @@ static void renderLine(int i, int nx, int ny) {
             termBold(stdout, true);
             termColorFG(stdout, kTermRed);
         }
-        putchar(E.buffer[line.offset + idx]);
+        putchar(E.buffer.data[line.offset + idx]);
         if(idx == endHL && index == E.highlight.line-1) {
             termReset(stdout);
         }

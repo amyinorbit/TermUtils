@@ -7,6 +7,7 @@ add_library(TermUtils STATIC
     repl.c
     editor.c
     hexes.c
+    string.c
 )
 target_include_directories(TermUtils PUBLIC ${PROJECT_SOURCE_DIR}/include)
 install(TARGETS TermUtils ARCHIVE DESTINATION lib)
