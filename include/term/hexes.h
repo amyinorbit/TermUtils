@@ -39,7 +39,7 @@ typedef enum {
 int hexesGetCh();
 int hexesGetSize(int* x, int* y);
 
-// HexesKey hexesGetKey();
+HexesKey hexesGetKey();
 HexesKey hexesGetKeyRaw();
 
 void hexesScreenAlternate(bool alt);

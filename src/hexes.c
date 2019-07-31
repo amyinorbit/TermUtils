@@ -38,6 +38,41 @@ int hexesGetCh() {
 #endif
 }
 
+HexesKey hexesGetKey() {
+    int buf[3];
+
+    char c = hexesGetCh();
+    switch(c) {
+    case KEY_ESC:
+        if((buf[0] = hexesGetCh()) < 0) return KEY_ESC;
+        if((buf[1] = hexesGetCh()) < 0) return KEY_ESC;
+
+        if(buf[0] == '[') {
+            // If we have a digit, then we have an extended escape sequence
+            if(isdigit(buf[1])) {
+                if((buf[2] = hexesGetCh()) < 0) return KEY_ESC;
+                if(buf[2] == '~') {
+                    switch(buf[1]) {
+                        case '3': return KEY_DELETE;
+                        case '5': return KEY_PAGE_UP;
+                        case '6': return KEY_PAGE_DOWN;
+                    }
+                }
+            } else {
+                switch(buf[1]) {
+                    case 'A': return KEY_ARROW_UP;
+                    case 'B': return KEY_ARROW_DOWN;
+                    case 'C': return KEY_ARROW_RIGHT;
+                    case 'D': return KEY_ARROW_LEFT;
+                }
+            }
+        }
+        break;
+    default:
+        return c;
+    }
+    return -1;
+}
 
 HexesKey hexesGetKeyRaw() {
     int buf[3];
