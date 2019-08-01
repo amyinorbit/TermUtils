@@ -22,6 +22,20 @@
 #include <sys/ioctl.h>
 #endif
 
+typedef enum REPLAction {
+    REPL_SUBMIT,
+    REPL_DONE,
+    REPL_CLEAR,
+    REPL_DONOTHING,
+} REPLAction;
+
+typedef REPLAction (*REPLCallback)(int);
+
+typedef struct {
+    int key;
+    REPLCallback function;
+} REPLCommand;
+
 struct {
     int cursor;
     int offsets[32];
@@ -30,16 +44,18 @@ struct {
 
 static const char* currentPrompt = "";
 
-static void replLeft() {
-    if(!Line.cursor) return;
+static REPLAction replLeft(int key) {
+    if(!Line.cursor) return REPL_DONOTHING;
     putchar('\b');
     Line.cursor -= 1;
+    return REPL_DONOTHING;
 }
 
-static void replRight() {
-    if(Line.cursor >= Line.buffer.count) return;
+static REPLAction replRight(int key) {
+    if(Line.cursor >= Line.buffer.count) return REPL_DONOTHING;
     putchar(Line.buffer.data[Line.cursor]);
     Line.cursor += 1;
+    return REPL_DONOTHING;
 }
 
 void termREPLInit(TermREPL* repl) {
@@ -84,51 +100,18 @@ void replPut(int c) {
 void replPuts(const char* str) {
     while(*str)
         replPut(*(str++));
-    replPut('\0');
 }
 
 // MARK: - Terminal Handling
 
-bool setTTY(bool reset) {
-#ifdef _WIN32
-    return false;
-#else
-    static struct termios saved;
-    
-    if(!reset) {
-        struct termios raw;
-        if (!isatty(STDIN_FILENO)) return false;
-        // atexit(editorAtExit);
-        if (tcgetattr(STDIN_FILENO,&saved) == -1) return false;
-
-        raw = saved;
-        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        raw.c_oflag &= ~(OPOST);
-        raw.c_cflag |= (CS8);
-        raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-        if (tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw) < 0) return false;
-        
-    } else {
-        if (tcsetattr(STDIN_FILENO,TCSAFLUSH,&saved) < 0) return false;
-    }
-    return true;
-#endif
-}
-
 void startREPL() {
-    // rl_ttyset(0);
-    // setTTY(false);
+    hexesStartRawMode();
     stringInit(&Line.buffer);
 }
 
 void stopREPL() {
-    // rl_ttyset(1);
-    // setTTY(true);
+    hexesStopRawMode();
     stringDeinit(&Line.buffer);
-}
-
-void replGet() {
-    
 }
 
 // MARK: - Insertion and deletion
@@ -140,18 +123,78 @@ static void lineCap() {
     while(move--) replPut('\b');
 }
 
-static void replBackspace() {
-    if(!Line.cursor) return;
-    replLeft();
+static void replErase(int move) {
+    if(Line.cursor - move >= Line.buffer.count || Line.cursor - move < 0) return;
+    while(move--) replLeft(0);
     stringErase(&Line.buffer, Line.cursor, 1);
     lineCap();
 }
 
-static void replErase(int move) {
-    if(Line.cursor - move >= Line.buffer.count || Line.cursor - move < 0) return;
-    while(move--) replLeft();
-    stringErase(&Line.buffer, Line.cursor, 1);
-    lineCap();
+static inline REPLAction replBackspace(int key) {
+    replErase(1);
+    return REPL_DONOTHING;
+}
+
+static inline REPLAction replDelete(int key) {
+    replErase(0);
+    return REPL_DONOTHING;
+}
+
+static void replRestart() {
+    Line.cursor = 0;
+    Line.buffer.count = 0;
+    if(Line.buffer.capacity) Line.buffer.data[0] = '\0';
+    showPrompt();
+}
+
+static REPLAction replClear(int key) {
+    replPuts("^C\n\r");
+    Line.cursor = 0;
+    Line.buffer.count = 0;
+    if(Line.buffer.capacity) Line.buffer.data[0] = '\0';
+    showPrompt();
+    return REPL_CLEAR;
+}
+
+static REPLAction replReturn(int key) {
+    replPuts("\n\r");
+    return REPL_SUBMIT;
+}
+
+static REPLAction replEnd(int key) {
+    replPuts("\n\r");
+    return REPL_DONE;
+}
+
+#ifndef CTRL
+#define CTRL(c) ((c)&037)
+#endif
+
+static const REPLCommand dispatch[] = {
+    {CTRL('d'), replEnd},
+    {CTRL('c'), replClear},
+    {CTRL('h'), replBackspace},
+    {CTRL('m'), replReturn},
+    {KEY_BACKSPACE, replBackspace},
+    {KEY_DELETE, replDelete},
+    {KEY_ARROW_LEFT, replLeft},
+    {KEY_ARROW_RIGHT, replRight},
+    // {CTRL('d'), }
+};
+
+static REPLAction defaultCMD(int key) {
+    stringInsert(&Line.buffer, Line.cursor, key & 0x00ff);
+    putchar(key & 0x00ff);
+    Line.cursor += 1;
+    return REPL_DONOTHING;
+}
+
+const REPLCallback findCommand(int c) {
+    static const int count = sizeof(dispatch) / sizeof(dispatch[0]);
+    for(int i = 0; i < count; ++i) {
+        if(dispatch[i].key == c) return dispatch[i].function;
+    }
+    return defaultCMD;
 }
 
 char* termREPL(TermREPL* repl, const char* prompt) {
@@ -159,53 +202,29 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     Line.cursor = 0;
     startREPL();
     showPrompt();
+    
+    char* result = NULL;
     for(;;) {
-        int key = hexesGetKey();
-        switch(key) {
+        int key = hexesGetKeyRaw();
+        REPLAction action = findCommand(key)(key);
+        
+        switch(action) {
+        case REPL_SUBMIT:
+            result = stringTake(&Line.buffer);
+            goto done;
             
-        case KEY_ARROW_UP:
-        case KEY_ARROW_DOWN:
-            break;
+        case REPL_DONE:
+            result = NULL;
+            goto done;
             
-            
-        case KEY_ARROW_LEFT:
-            replLeft();
-            break;
-            
-        case KEY_ARROW_RIGHT:
-            replRight();
-            break;
-            
-        case KEY_BACKSPACE:
-            replErase(1);
-            break;
-            
-        case KEY_DELETE:
-            replErase(0);
-            break;
-            
-        case KEY_RETURN:
-        case '\n':
-            break;
-            
-        case KEY_CTRL_C:
-            goto stop;
-            break;
-            
-        case KEY_CTRL_D:
-            return NULL;
-            break;
-            
-            
-            
-        default:
-            stringInsert(&Line.buffer, Line.cursor, key & 0x00ff);
-            putchar(key & 0x00ff);
-            Line.cursor += 1;
+        case REPL_CLEAR:
+        case REPL_DONOTHING:
             break;
         }
     }
-stop:
-    return Line.buffer.data;
+done:
+    stopREPL();
+    fflush(stdout);
+    return result;
     // stopREPL();
 }
