@@ -54,7 +54,7 @@ void termREPLInit(TermREPL* repl) {
     for(int i = 0; i < TERM_MAX_HISTORY; ++i) {
         repl->history[i] = NULL;
     }
-    
+
 }
 
 void termREPLDeinit(TermREPL* repl) {
@@ -69,7 +69,7 @@ static char* strip(char* data) {
     char* end = data;
     while(*end) end += 1;
     if(*end != '\n' && *end != ' ' && *end != '\0') return data;
-    
+
     for(; end > data; --end) {
         if(end[-1] != '\n' && end[-1] != ' ') break;
     }
@@ -107,7 +107,7 @@ int replShow(int c) {
 int replShows(const char* str) {
     int total = 0;
     while(*str)
-        total += replShow(*str);
+        total += replShow(*str++);
     return total;
 }
 
@@ -177,7 +177,6 @@ static REPLAction replCancel(int key) {
 }
 
 static REPLAction replReturn(int key) {
-    replShow(key);
     replPuts("\n\r");
     return REPL_SUBMIT;
 }
@@ -194,10 +193,10 @@ static const REPLCommand dispatch[] = {
     {CTRL('c'), replCancel},
     // {CTRL('h'), replBackspace},
     {CTRL('m'), replReturn},
-    
+
     {KEY_BACKSPACE, replBackspace},
     {KEY_DELETE, replDelete},
-    
+
     {CTRL('b'), replLeft},
     {KEY_ARROW_LEFT, replLeft},
     {CTRL('f'), replRight},
@@ -210,6 +209,9 @@ static REPLAction defaultCMD(int key) {
     // putchar(key & 0x00ff);
     replShow(key);
     Line.cursor += 1;
+    if(Line.cursor == Line.buffer.count) return REPL_DONOTHING;
+    int move = replShows(&Line.buffer.data[Line.cursor]);
+    while(move--) replPut('\b');
     return REPL_DONOTHING;
 }
 
@@ -225,28 +227,28 @@ char* termREPL(TermREPL* repl, const char* prompt) {
     Line.cursor = 0;
     startREPL(prompt);
     showPrompt();
-    
+
     char* result = NULL;
     for(;;) {
         int key = hexesGetKeyRaw();
         REPLAction action = findCommand(key)(key);
-        
+
         switch(action) {
         case REPL_SUBMIT:
             result = stringTake(&Line.buffer);
             goto done;
-            
+
         case REPL_DONE:
             result = NULL;
             goto done;
-            
+
         case REPL_CLEAR:
             Line.cursor = 0;
             Line.buffer.count = 0;
             if(Line.buffer.capacity) Line.buffer.data[0] = '\0';
             showPrompt();
             break;
-            
+
         case REPL_DONOTHING:
             break;
         }
