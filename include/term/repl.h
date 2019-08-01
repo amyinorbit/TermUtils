@@ -26,5 +26,6 @@ void termREPLInit(TermREPL* repl);
 void termREPLDeinit(TermREPL* repl);
 
 char* termREPL(TermREPL* repl, const char* prompt);
+void termREPLRecord(TermREPL* repl, const char* line);
 
 #endif

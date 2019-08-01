@@ -42,9 +42,10 @@ typedef struct {
 } REPLCommand;
 
 struct {
+    int historyIndex;
+    TermREPL* history;
     const char* prompt;
     int cursor;
-    int offsets[32];
     String buffer;
 } Line;
 
@@ -113,8 +114,11 @@ int replShows(const char* str) {
 
 // MARK: - Terminal Handling
 
-void startREPL(const char* prompt) {
+void startREPL(const char* prompt, TermREPL* history) {
     hexesStartRawMode();
+    Line.cursor = 0;
+    Line.historyIndex = -1;
+    Line.history = history;
     Line.prompt = prompt;
     stringInit(&Line.buffer);
 }
@@ -149,7 +153,16 @@ static void lineCap() {
     while(move--) replPut('\b');
 }
 
-static inline REPLAction replBackspace(int key) {
+static void replace(const char* str) {
+    stringSet(&Line.buffer, str);
+    Line.cursor = Line.buffer.count;
+    replPut('\r');
+    replPuts("\r\e[2K");
+    showPrompt();
+    replShows(Line.buffer.data);
+}
+
+static REPLAction replBackspace(int key) {
     if(!Line.cursor) return REPL_DONOTHING;
     replLeft(0);
     stringErase(&Line.buffer, Line.cursor, 1);
@@ -157,7 +170,7 @@ static inline REPLAction replBackspace(int key) {
     return REPL_DONOTHING;
 }
 
-static inline REPLAction replDelete(int key) {
+static REPLAction replDelete(int key) {
     if(Line.cursor >= Line.buffer.count) return REPL_DONOTHING;
     stringErase(&Line.buffer, Line.cursor, 1);
     lineCap();
@@ -165,7 +178,6 @@ static inline REPLAction replDelete(int key) {
 }
 
 static REPLAction replFlush(int key) {
-    replPut('\r');
     replPuts("\r\e[2K");
     return REPL_CLEAR;
 }
@@ -188,10 +200,35 @@ static REPLAction replEnd(int key) {
     return REPL_DONE;
 }
 
+static REPLAction replHistoryPrev(int key) {
+    if(Line.historyIndex >= Line.history->historyCount - 1) return REPL_DONOTHING;
 
-static REPLAction replHistory(int key) {
-    // TODO: implementation
+    Line.historyIndex += 1;
+    replace(Line.history->history[Line.historyIndex]);
     return REPL_DONOTHING;
+}
+
+static REPLAction replHistoryNext(int key) {
+    if(Line.historyIndex <= 0) {
+        Line.historyIndex = -1;
+        return replFlush(key);
+    }
+
+    Line.historyIndex -= 1;
+    replace(Line.history->history[Line.historyIndex]);
+    return REPL_DONOTHING;
+}
+
+void termREPLRecord(TermREPL* repl, const char* entry) {
+    int length = strlen(entry);
+    memmove(repl->history+1, repl->history, (TERM_MAX_HISTORY-1) * sizeof(char*));
+    repl->history[0] = malloc((1 + length) * sizeof(char));
+    memcpy(repl->history[0], entry, length);
+    repl->history[0][length] = '\0';
+    strip(repl->history[0]);
+
+    repl->historyCount += 1;
+    if(repl->historyCount > TERM_MAX_HISTORY) repl->historyCount = TERM_MAX_HISTORY;
 }
 
 static const REPLCommand dispatch[] = {
@@ -209,8 +246,11 @@ static const REPLCommand dispatch[] = {
     {CTRL('f'), replRight},
     {KEY_ARROW_RIGHT, replRight},
 
-    {KEY_ARROW_UP, replHistory},
-    {KEY_ARROW_DOWN, replHistory},
+    {CTL('p'), replHistoryPrev},
+    {KEY_ARROW_UP, replHistoryPrev},
+
+    {CTL('n'), replHistoryNext},
+    {KEY_ARROW_DOWN, replHistoryNext},
 };
 
 static REPLAction defaultCMD(int key) {
@@ -232,8 +272,7 @@ const REPLCallback findCommand(int c) {
 }
 
 char* termREPL(TermREPL* repl, const char* prompt) {
-    Line.cursor = 0;
-    startREPL(prompt);
+    startREPL(prompt, repl);
     showPrompt();
 
     char* result = NULL;

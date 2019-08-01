@@ -13,21 +13,22 @@ int main(int argc, const char** argv) {
     // do {
     //     termEditorRender();
     // } while(termEditorUpdate() != KEY_CTRL_D);
-    // 
+    //
     // char* data = termEditorFlush();
     // termEditorDeinit();
     // printf("Editor data: \n---\n%s\n---\n", data);
-    
+
     termFilter(kTermInfo);
-    
+
     TermREPL repl;
     termREPLInit(&repl);
     char* data = NULL;
-    
+
     while((data = termREPL(&repl, "repl"))) {
         termInfo("demo", "received repl input: %s", data);
+        termREPLRecord(&repl, data);
         free(data);
     }
-    
+
     termREPLDeinit(&repl);
 }

@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void stringEnsure(String* str, int count) {
+void stringEnsure(String* str, int count) {
     if(count < str->capacity) return;
     while(count >= str->capacity)
         str->capacity = str->capacity ? str->capacity * 2 : 32;
