@@ -178,6 +178,7 @@ static REPLAction replCancel(int key) {
 
 static REPLAction replReturn(int key) {
     replPuts("\n\r");
+    stringAppend(&Line.buffer, '\n');
     return REPL_SUBMIT;
 }
 
@@ -187,11 +188,17 @@ static REPLAction replEnd(int key) {
     return REPL_DONE;
 }
 
+
+static REPLAction replHistory(int key) {
+    // TODO: implementation
+    return REPL_DONOTHING;
+}
+
 static const REPLCommand dispatch[] = {
     {CTRL('d'), replEnd},
     {CTRL('l'), replFlush},
     {CTRL('c'), replCancel},
-    // {CTRL('h'), replBackspace},
+    {CTRL('h'), replBackspace},
     {CTRL('m'), replReturn},
 
     {KEY_BACKSPACE, replBackspace},
@@ -201,12 +208,13 @@ static const REPLCommand dispatch[] = {
     {KEY_ARROW_LEFT, replLeft},
     {CTRL('f'), replRight},
     {KEY_ARROW_RIGHT, replRight},
-    // {CTRL('d'), }
+
+    {KEY_ARROW_UP, replHistory},
+    {KEY_ARROW_DOWN, replHistory},
 };
 
 static REPLAction defaultCMD(int key) {
     stringInsert(&Line.buffer, Line.cursor, key & 0x00ff);
-    // putchar(key & 0x00ff);
     replShow(key);
     Line.cursor += 1;
     if(Line.cursor == Line.buffer.count) return REPL_DONOTHING;
