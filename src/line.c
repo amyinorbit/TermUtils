@@ -22,10 +22,6 @@ typedef struct {
 } History;
 
 typedef struct {
-    void (*printPrompt)(const char*);
-} Functions;
-
-typedef struct {
     int key;
     LineBinding function;
     LineCMD defaultCmd; // if [function] is null, we return this
@@ -35,7 +31,7 @@ struct Line {
     const char* prompt;
     int cursor;
     
-    Functions functions;
+    LineFunctions functions;
     String buffer;
     History history;
 };
@@ -75,6 +71,9 @@ static int showString(Line* line, const char* str) {
 
 static void back(Line* line, LineAction mode) {
     if(mode == kLineMove && !line->cursor) return;
+    if(IS_CTL(line->buffer.data[line->cursor-1])) {
+        putChar('\b');
+    }
     if(mode == kLineMove) line->cursor -= 1;
     putChar('\b');
 }
@@ -176,7 +175,6 @@ static const BindingData bindings[] = {
 };
 
 static LineCMD dispatch(Line* line, int key) {
-    if(!IS_CTL(key) && key < 0x7f) return insert(line, key);
     
     for(int i = 0; bindings[i].key != 0; ++i) {
         if(bindings[i].key != key) continue;
@@ -184,19 +182,18 @@ static LineCMD dispatch(Line* line, int key) {
             bindings[i].function(line, key) :
             bindings[i].defaultCmd;
     }
-    
-    return CMD_NOTHING;
+    return insert(line, key);
 }
 
 // MARK: - Public Line API
 
-Line* lineNew() {
+Line* lineNew(const LineFunctions* functions) {
     Line* line = malloc(sizeof(Line));
     assert(line && "line editor allocation failed");
     line->prompt = "";
     line->cursor = 0;
     
-    line->functions.printPrompt = NULL;
+    line->functions = *functions;
     stringInit(&line->buffer);
     // TODO: initialise history
     

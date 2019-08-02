@@ -9,24 +9,19 @@
 #include "shims.h"
 
 void prompt(const char* PS) {
-    termColorFG(stdout, kTermBlack);
+    termColorFG(stdout, kTermBlue);
     printf("%s > ", PS);
     termColorFG(stdout, kTermDefault);
 }
 
 int main(int argc, const char** argv) {
-    // termEditorInit("file.c");
-    // do {
-    //     termEditorRender();
-    // } while(termEditorUpdate() != KEY_CTRL_D);
-    //
-    // char* data = termEditorFlush();
-    // termEditorDeinit();
-    // printf("Editor data: \n---\n%s\n---\n", data);
 
     termFilter(kTermInfo);
     
-    Line* line = lineNew();
+    LineFunctions functions;
+    functions.printPrompt = prompt;
+    
+    Line* line = lineNew(&functions);
     lineSetPrompt(line, "repl");
     
     char* input = NULL;
@@ -36,17 +31,4 @@ int main(int argc, const char** argv) {
     }
     
     lineDealloc(line);
-    
-
-    // TermREPL repl;
-    // termREPLInit(&repl);
-    // char* data = NULL;
-    //
-    // while((data = termREPL(&repl, "repl"))) {
-    //     termInfo("demo", "received repl input: %s", data);
-    //     termREPLRecord(&repl, data);
-    //     free(data);
-    // }
-    //
-    // termREPLDeinit(&repl);
 }

@@ -32,11 +32,16 @@ typedef struct LineCMD {
     int param;
 } LineCMD;
 
+/// Used to override defaults
+typedef struct {
+    void (*printPrompt)(const char*);
+} LineFunctions;
+
 typedef struct Line Line;
 typedef LineCMD (*LineBinding)(Line*, int key);
 
 // TODO: pass in FILE* ptrs for input, output, error streams.
-Line* lineNew();
+Line* lineNew(const LineFunctions* functions);
 void lineDealloc(Line* line);
 
 void lineRunCommand(LineAction action, void* param);
