@@ -15,11 +15,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    int count;
-    int capacity;
-    const char** data;
-} History;
+typedef struct HistoryEntry {
+    struct HistoryEntry* prev;
+    struct HistoryEntry* next;
+    char line[];
+} HistoryEntry;
 
 typedef struct {
     int key;
@@ -33,7 +33,9 @@ struct Line {
     
     LineFunctions functions;
     String buffer;
-    History history;
+    
+    HistoryEntry* head;
+    HistoryEntry* current;
 };
 
 #define CMD_NOTHING (LineCMD){kLineStay, 0}
@@ -148,30 +150,69 @@ static void reset(Line* line) {
     line->cursor = 0;
 }
 
+// MARK: - History Management
+// TODO: we should save the current buffer when scrolling through the history
+
+static void freeHistory(Line* line) {
+    HistoryEntry* entry = line->head;
+    while(entry) {
+        HistoryEntry* prev = entry->prev;
+        free(entry);
+        entry = prev;
+    }
+}
+
+static LineCMD historyPrev(Line* line, int key) {
+    if(!line->current && !line->head) return CMD_NOTHING;
+    
+    HistoryEntry* saved = line->current;
+    line->current = line->current ? line->current->prev : line->head;
+    
+    if(!line->current) {
+        line->current = saved;
+        return CMD_NOTHING;
+    }
+    
+    stringSet(&line->buffer, line->current->line);
+    return CMD(kLineRefresh, 0);
+}
+
+static LineCMD historyNext(Line* line, int key) {
+    if(!line->current) return CMD_NOTHING;
+    line->current = line->current->next;
+    
+    if(line->current) {
+        stringSet(&line->buffer, line->current->line);
+    } else {
+        reset(line);
+    }
+    return CMD(kLineRefresh, 0);
+}
+
 // MARK: - Default bindings & binding dispatch
 // TODO: this should probably get moved to the Line* object itself, once we add custom bindings
 
 static const BindingData bindings[] = {
-    {CTL('d'),          NULL,       CMD(kLineDone, 0)},
-    {CTL('c'),          clear,      CMD_NOTHING},
-    {CTL('m'),          NULL,       CMD(kLineReturn, 0)},
-    {CTL('l'),          NULL,       CMD(kLineRefresh, 0)},
+    {CTL('d'),          NULL,           CMD(kLineDone, 0)},
+    {CTL('c'),          &clear,         CMD_NOTHING},
+    {CTL('m'),          NULL,           CMD(kLineReturn, 0)},
+    {CTL('l'),          NULL,           CMD(kLineRefresh, 0)},
     
-    {KEY_BACKSPACE,     &backspace, CMD_NOTHING},
-    {KEY_DELETE,        &delete,    CMD_NOTHING},
+    {KEY_BACKSPACE,     &backspace,     CMD_NOTHING},
+    {KEY_DELETE,        &delete,        CMD_NOTHING},
     
-    {CTL('b'),          NULL,       CMD(kLineMove, -1)},
-    {KEY_ARROW_LEFT,    NULL,       CMD(kLineMove, -1)},
-    {CTL('f'),          NULL,       CMD(kLineMove, 1)},
-    {KEY_ARROW_RIGHT,   NULL,       CMD(kLineMove, 1)},
+    {CTL('b'),          NULL,           CMD(kLineMove, -1)},
+    {KEY_ARROW_LEFT,    NULL,           CMD(kLineMove, -1)},
+    {CTL('f'),          NULL,           CMD(kLineMove, 1)},
+    {KEY_ARROW_RIGHT,   NULL,           CMD(kLineMove, 1)},
     
     // TODO: implement history commands
-    {CTL('p'),          NULL,       CMD_NOTHING},
-    {KEY_ARROW_UP,      NULL,       CMD_NOTHING},
-    {CTL('n'),          NULL,       CMD_NOTHING},
-    {KEY_ARROW_DOWN,    NULL,       CMD_NOTHING},
+    {CTL('p'),          &historyPrev,   CMD_NOTHING},
+    {KEY_ARROW_UP,      &historyPrev,   CMD_NOTHING},
+    {CTL('n'),          &historyNext,   CMD_NOTHING},
+    {KEY_ARROW_DOWN,    &historyNext,   CMD_NOTHING},
     
-    {0,                 NULL,       CMD_NOTHING},
+    {0,                 NULL,           CMD_NOTHING},
 };
 
 static LineCMD dispatch(Line* line, int key) {
@@ -195,7 +236,9 @@ Line* lineNew(const LineFunctions* functions) {
     
     line->functions = *functions;
     stringInit(&line->buffer);
-    // TODO: initialise history
+    
+    line->head = NULL;
+    line->current = NULL;
     
     return line;
 }
@@ -203,6 +246,7 @@ Line* lineNew(const LineFunctions* functions) {
 void lineDealloc(Line* line) {
     assert(line && "cannot deallocate a null line");
     stringDeinit(&line->buffer);
+    freeHistory(line);
     free(line);
 }
 
@@ -228,16 +272,8 @@ char* lineGet(Line* line) {
         int key = hexesGetKeyRaw();
         LineCMD cmd = dispatch(line, key);
         
-        /*
-        kLineStay       = 1 << 0,
-        kLineDone       = 1 << 1,
-        kLineReturn     = 1 << 2,
-        kLineMove       = 1 << 3,
-        kLineReprint    = 1 << 4,
-        kLineCancel    = 1 << 5,
-        */
         switch(cmd.action) {
-            case kLineStay:
+        case kLineStay:
             if(cmd.param >= 0) break;
             if(cmd.param < 0) backN(line, kLineStay, -cmd.param);
             break;
@@ -276,9 +312,35 @@ char* lineGet(Line* line) {
 done:
     hexesStopRawMode();
     fflush(stdout);
+    if(result) lineHistoryAdd(line, result);
     return result;
 }
 
-void lineHistoryAdd(Line* line, const char* entry) {
-    // TODO: implementation
+static char* strip(char* data) {
+    char* end = data;
+    while(*end) end += 1;
+    if(*end != '\n' && *end != ' ' && *end != '\0') return data;
+
+    for(; end > data; --end) {
+        if(end[-1] != '\n' && end[-1] != ' ') break;
+    }
+    *end = '\0';
+    return data;
+}
+
+void lineHistoryAdd(Line* line, const char* data) {
+    int length = strlen(data);
+    HistoryEntry* entry = malloc(sizeof(HistoryEntry) + (length + 1) * sizeof(char));
+    memcpy(entry->line, data, length);
+    entry->line[length] = '\0';
+    strip(entry->line);
+    
+    entry->next = NULL;
+    if(line->head) {
+        entry->prev = line->head;
+        line->head->next = entry;
+    } else {
+        entry->prev = NULL;
+    }
+    line->head = entry;
 }
