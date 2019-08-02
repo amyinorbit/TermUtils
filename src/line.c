@@ -34,6 +34,7 @@ struct Line {
     LineFunctions functions;
     String buffer;
     
+    HistoryEntry* tail;
     HistoryEntry* head;
     HistoryEntry* current;
 };
@@ -328,6 +329,34 @@ static char* strip(char* data) {
     return data;
 }
 
+void lineHistoryLoad(Line* line, const char* path) {
+    
+    FILE* history = fopen(path, "rb");
+    if(!history) return;
+    
+    char* buffer = NULL;
+    size_t size = 0;
+    
+    while(getline(&buffer, &size, history) > 0) {
+        lineHistoryAdd(line, buffer);
+    }
+    
+    free(buffer);
+    fclose(history);
+}
+
+void lineHistoryWrite(Line* line, const char* path) {
+    FILE* history = fopen(path, "wb");
+    if(!history) return;
+    
+    HistoryEntry* entry = line->tail;
+    while(entry) {
+        fprintf(history, "%s\n", entry->line);
+        entry = entry->next;
+    }
+    fclose(history);
+}
+
 void lineHistoryAdd(Line* line, const char* data) {
     int length = strlen(data);
     HistoryEntry* entry = malloc(sizeof(HistoryEntry) + (length + 1) * sizeof(char));
@@ -341,6 +370,7 @@ void lineHistoryAdd(Line* line, const char* data) {
         line->head->next = entry;
     } else {
         entry->prev = NULL;
+        line->tail = entry;
     }
     line->head = entry;
 }

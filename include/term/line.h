@@ -48,6 +48,9 @@ void lineRunCommand(LineAction action, void* param);
 
 void lineSetPrompt(Line* line, const char* prompt);
 char* lineGet(Line* line);
+
+void lineHistoryLoad(Line* line, const char* path);
+void lineHistoryWrite(Line* line, const char* path);
 void lineHistoryAdd(Line* line, const char* entry);
 
 #endif

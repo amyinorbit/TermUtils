@@ -4,7 +4,6 @@ add_library(TermUtils STATIC
     arg_utils.c
     colors.c
     printing.c
-    repl.c
     line.c
     editor.c
     hexes.c

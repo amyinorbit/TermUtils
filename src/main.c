@@ -2,7 +2,6 @@
 #include <term/arg.h>
 #include <term/colors.h>
 #include <term/printing.h>
-#include <term/repl.h>
 #include <term/editor.h>
 #include <term/line.h>
 #include <stdlib.h>
@@ -22,6 +21,8 @@ int main(int argc, const char** argv) {
     functions.printPrompt = prompt;
     
     Line* line = lineNew(&functions);
+    lineHistoryLoad(line, ".demo_history");
+    
     lineSetPrompt(line, "repl");
     
     char* input = NULL;
@@ -30,5 +31,6 @@ int main(int argc, const char** argv) {
         free(input);
     }
     
+    lineHistoryWrite(line, ".demo_history");
     lineDealloc(line);
 }
