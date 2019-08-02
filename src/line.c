@@ -285,10 +285,16 @@ char* lineGet(Line* line) {
             goto done;
             
         case kLineReturn:
-            putString("\n\r");
-            stringAppend(&line->buffer, '\n');
-            result = stringTake(&line->buffer);
-            goto done;
+            if(!line->buffer.count) {
+                putString("\r\n");
+                showPrompt(line);
+            } else {
+                putString("\n\r");
+                stringAppend(&line->buffer, '\n');
+                result = stringTake(&line->buffer);
+                goto done;
+            }
+            break;
             
         case kLineMove:
             if(cmd.param < 0) backN(line, kLineMove, -cmd.param);
@@ -313,6 +319,7 @@ char* lineGet(Line* line) {
 done:
     hexesStopRawMode();
     fflush(stdout);
+    line->current = NULL;
     if(result) lineHistoryAdd(line, result);
     return result;
 }
