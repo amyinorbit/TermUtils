@@ -14,14 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#else
-#include <stdio.h>
-#include <termios.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#endif
-
 
 #define CTL(c)      ((c) & 037)
 #define IS_CTL(c)   ((c) && (c) < ' ')
@@ -33,6 +25,14 @@ typedef enum REPLAction {
     REPL_CLEAR,
     REPL_DONOTHING,
 } REPLAction;
+
+typedef enum {
+    LINE_DONE,
+    LINE_RETURN,
+    LINE_REFRESH,
+    LINE_CLEAR,
+    LINE_WAIT
+} LineStatus;
 
 typedef REPLAction (*REPLCallback)(int);
 
@@ -232,25 +232,25 @@ void termREPLRecord(TermREPL* repl, const char* entry) {
 }
 
 static const REPLCommand dispatch[] = {
-    {CTRL('d'), replEnd},
-    {CTRL('l'), replFlush},
-    {CTRL('c'), replCancel},
-    {CTRL('h'), replBackspace},
-    {CTRL('m'), replReturn},
+    {CTL('d'),          replEnd},
+    {CTL('l'),          replFlush},
+    {CTL('c'),          replCancel},
+    {CTL('h'),          replBackspace},
+    {CTL('m'),          replReturn},
 
-    {KEY_BACKSPACE, replBackspace},
-    {KEY_DELETE, replDelete},
+    {KEY_BACKSPACE,     replBackspace},
+    {KEY_DELETE,        replDelete},
 
-    {CTRL('b'), replLeft},
-    {KEY_ARROW_LEFT, replLeft},
-    {CTRL('f'), replRight},
-    {KEY_ARROW_RIGHT, replRight},
+    {CTL('b'),          replLeft},
+    {KEY_ARROW_LEFT,    replLeft},
+    {CTL('f'),          replRight},
+    {KEY_ARROW_RIGHT,   replRight},
 
-    {CTL('p'), replHistoryPrev},
-    {KEY_ARROW_UP, replHistoryPrev},
+    {CTL('p'),          replHistoryPrev},
+    {KEY_ARROW_UP,      replHistoryPrev},
 
-    {CTL('n'), replHistoryNext},
-    {KEY_ARROW_DOWN, replHistoryNext},
+    {CTL('n'),          replHistoryNext},
+    {KEY_ARROW_DOWN,    replHistoryNext},
 };
 
 static REPLAction defaultCMD(int key) {
