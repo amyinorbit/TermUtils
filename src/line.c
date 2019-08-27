@@ -175,6 +175,7 @@ static LineCMD historyPrev(Line* line, int key) {
     }
     
     stringSet(&line->buffer, line->current->line);
+    line->cursor = line->buffer.count;
     return CMD(kLineRefresh, 0);
 }
 
@@ -187,6 +188,7 @@ static LineCMD historyNext(Line* line, int key) {
     } else {
         reset(line);
     }
+    line->cursor = line->buffer.count;
     return CMD(kLineRefresh, 0);
 }
 
