@@ -9,90 +9,90 @@
 //===--------------------------------------------------------------------------------------------===
 #include <term/line.h>
 #include <term/hexes.h> // Could be moved back to private headers
-#include "string.h"
+#include "string_buf.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct HistoryEntry {
-    struct HistoryEntry* prev;
-    struct HistoryEntry* next;
+typedef struct hist_entry_s {
+    struct hist_entry_s* prev;
+    struct hist_entry_s* next;
     char line[];
-} HistoryEntry;
+} hist_entry_t;
 
 typedef struct {
     int key;
-    LineBinding function;
-    LineCMD defaultCmd; // if [function] is null, we return this
-} BindingData;
+    line_binding_t function;
+    line_cmd_t default_cmd; // if [function] is null, we return this
+} binding_data_t;
 
-struct Line {
+struct line_t {
     const char* prompt;
     int cursor;
     
-    LineFunctions functions;
-    String buffer;
+    line_functions_t functions;
+    string_buf_t buffer;
     
-    HistoryEntry* tail;
-    HistoryEntry* head;
-    HistoryEntry* current;
+    hist_entry_t* tail;
+    hist_entry_t* head;
+    hist_entry_t* current;
 };
 
-#define CMD_NOTHING (LineCMD){kLineStay, 0}
-#define CMD(action, param) (LineCMD){(action), (param)}
+#define CMD_NOTHING (line_cmd_t){LINE_STAY, 0}
+#define CMD(action, param) (line_cmd_t){(action), (param)}
 
 // MARK: - Terminal manipulation.
 
-static void putChar(char c) {
+static void put_char(char c) {
     putchar(c);
 }
 
-static void putString(const char* str) {
+static void put_string(const char* str) {
     while(*str)
-        putChar(*str++);
+        put_char(*str++);
 }
 
-static int showChar(Line* line, char c) {
+static int show_char(line_t* line, char c) {
     if(IS_CTL(c)) {
-        termColorFG(stdout, kTermBlack);
-        putChar('^');
-        putChar(DE_CTL(c));
-        termColorFG(stdout, kTermDefault);
+        term_set_fg(stdout, TERM_BLACK);
+        put_char('^');
+        put_char(DE_CTL(c));
+        term_set_fg(stdout, TERM_DEFAULT);
         return 2;
     }
-    putChar(c & 0x7f);
+    put_char(c & 0x7f);
     return 1;
 }
 
-static int showString(Line* line, const char* str) {
+static int show_string(line_t* line, const char* str) {
     int total = 0;
     while(*str)
-        total += showChar(line, *str++);
+        total += show_char(line, *str++);
     return total;
 }
 
-static void back(Line* line, LineAction mode) {
-    if(mode == kLineMove && !line->cursor) return;
+static void back(line_t* line, line_action_t mode) {
+    if(mode == LINE_MOVE && !line->cursor) return;
     if(IS_CTL(line->buffer.data[line->cursor-1])) {
-        putChar('\b');
+        put_char('\b');
     }
-    if(mode == kLineMove) line->cursor -= 1;
-    putChar('\b');
+    if(mode == LINE_MOVE) line->cursor -= 1;
+    put_char('\b');
 }
 
-static void backN(Line* line, LineAction mode, int n) {
+static void back_n(line_t* line, line_action_t mode, int n) {
     while(n--)
         back(line, mode);
 }
 
-static void forward(Line* line) {
+static void forward(line_t* line) {
     if(line->cursor >= line->buffer.count) return;
-    showChar(line, line->buffer.data[line->cursor]);
+    show_char(line, line->buffer.data[line->cursor]);
     line->cursor += 1;
 }
 
-static void forwardN(Line* line, int n) {
+static void forward_n(line_t* line, int n) {
     while(n--)
         forward(line);
 }
@@ -100,52 +100,52 @@ static void forwardN(Line* line, int n) {
 // MARK: - typing handling
 
 // re-print the line after the cursor, to make sure we don't have any remaining stray characters.
-static LineCMD finishLine(Line* line) {
-    int move = showString(line, &line->buffer.data[line->cursor]);
-    putString("\e[0K");
-    return CMD(kLineStay, -move);
+static line_cmd_t finish_line(line_t* line) {
+    int move = show_string(line, &line->buffer.data[line->cursor]);
+    put_string("\e[0K");
+    return CMD(LINE_STAY, -move);
 }
 
-static LineCMD insert(Line* line, int key) {
-    stringInsert(&line->buffer, line->cursor, key & 0x00ff);
-    showChar(line, key);
+static line_cmd_t insert(line_t* line, int key) {
+    string_buf_insert(&line->buffer, line->cursor, key & 0x00ff);
+    show_char(line, key);
     line->cursor += 1;
     if(line->cursor == line->buffer.count) return CMD_NOTHING;
-    return finishLine(line);
+    return finish_line(line);
 }
 
-static LineCMD backspace(Line* line, int key) {
+static line_cmd_t backspace(line_t* line, int key) {
     if(!line->buffer.count || !line->cursor) return CMD_NOTHING;
-    back(line, kLineMove);
-    stringErase(&line->buffer, line->cursor, 1);
-    return finishLine(line);
+    back(line, LINE_MOVE);
+    string_buf_erase(&line->buffer, line->cursor, 1);
+    return finish_line(line);
 }
 
-static LineCMD delete(Line* line, int key) {
+static line_cmd_t delete(line_t* line, int key) {
     if(!line->buffer.count || line->cursor >= line->buffer.count) return CMD_NOTHING;
-    stringErase(&line->buffer, line->cursor, 1);
-    return finishLine(line);
+    string_buf_erase(&line->buffer, line->cursor, 1);
+    return finish_line(line);
 }
 
-static LineCMD clear(Line* line, int key) {
+static line_cmd_t clear(line_t* line, int key) {
     line->cursor = 0;
     line->buffer.count = 0;
     if(line->buffer.capacity) line->buffer.data[0] = '\0';
-    return CMD(kLineCancel, 0);
+    return CMD(LINE_CANCEL, 0);
 }
 
 // MARK: - Built-in utils
 
-static void showPrompt(const Line* line) {
-    if(line->functions.printPrompt) {
-        line->functions.printPrompt(line->prompt);
+static void show_prompt(const line_t* line) {
+    if(line->functions.print_prompt) {
+        line->functions.print_prompt(line->prompt);
     } else {
-        putString(line->prompt);
-        putString("> ");
+        put_string(line->prompt);
+        put_string("> ");
     }
 }
 
-static void reset(Line* line) {
+static void reset(line_t* line) {
     line->buffer.count = 0;
     if(line->buffer.capacity) line->buffer.data[0] = '\0';
     line->cursor = 0;
@@ -154,19 +154,19 @@ static void reset(Line* line) {
 // MARK: - History Management
 // TODO: we should save the current buffer when scrolling through the history
 
-static void freeHistory(Line* line) {
-    HistoryEntry* entry = line->head;
+static void free_history(line_t* line) {
+    hist_entry_t* entry = line->head;
     while(entry) {
-        HistoryEntry* prev = entry->prev;
+        hist_entry_t* prev = entry->prev;
         free(entry);
         entry = prev;
     }
 }
 
-static LineCMD historyPrev(Line* line, int key) {
+static line_cmd_t history_prev(line_t* line, int key) {
     if(!line->current && !line->head) return CMD_NOTHING;
     
-    HistoryEntry* saved = line->current;
+    hist_entry_t* saved = line->current;
     line->current = line->current ? line->current->prev : line->head;
     
     if(!line->current) {
@@ -174,71 +174,71 @@ static LineCMD historyPrev(Line* line, int key) {
         return CMD_NOTHING;
     }
     
-    stringSet(&line->buffer, line->current->line);
+    string_buf_set(&line->buffer, line->current->line);
     line->cursor = line->buffer.count;
-    return CMD(kLineRefresh, 0);
+    return CMD(LINE_REFRESH, 0);
 }
 
-static LineCMD historyNext(Line* line, int key) {
+static line_cmd_t history_next(line_t* line, int key) {
     if(!line->current) return CMD_NOTHING;
     line->current = line->current->next;
     
     if(line->current) {
-        stringSet(&line->buffer, line->current->line);
+        string_buf_set(&line->buffer, line->current->line);
     } else {
         reset(line);
     }
     line->cursor = line->buffer.count;
-    return CMD(kLineRefresh, 0);
+    return CMD(LINE_REFRESH, 0);
 }
 
 // MARK: - Default bindings & binding dispatch
-// TODO: this should probably get moved to the Line* object itself, once we add custom bindings
+// TODO: this should probably get moved to the line_t* object itself, once we add custom bindings
 
-static const BindingData bindings[] = {
-    {CTL('d'),          NULL,           CMD(kLineDone, 0)},
+static const binding_data_t bindings[] = {
+    {CTL('d'),          NULL,           CMD(LINE_DONE, 0)},
     {CTL('c'),          &clear,         CMD_NOTHING},
-    {CTL('m'),          NULL,           CMD(kLineReturn, 0)},
-    {CTL('l'),          NULL,           CMD(kLineRefresh, 0)},
+    {CTL('m'),          NULL,           CMD(LINE_RETURN, 0)},
+    {CTL('l'),          NULL,           CMD(LINE_REFRESH, 0)},
     
     {KEY_BACKSPACE,     &backspace,     CMD_NOTHING},
     {KEY_DELETE,        &delete,        CMD_NOTHING},
     
-    {CTL('b'),          NULL,           CMD(kLineMove, -1)},
-    {KEY_ARROW_LEFT,    NULL,           CMD(kLineMove, -1)},
-    {CTL('f'),          NULL,           CMD(kLineMove, 1)},
-    {KEY_ARROW_RIGHT,   NULL,           CMD(kLineMove, 1)},
+    {CTL('b'),          NULL,           CMD(LINE_MOVE, -1)},
+    {KEY_ARROW_LEFT,    NULL,           CMD(LINE_MOVE, -1)},
+    {CTL('f'),          NULL,           CMD(LINE_MOVE, 1)},
+    {KEY_ARROW_RIGHT,   NULL,           CMD(LINE_MOVE, 1)},
     
     // TODO: implement history commands
-    {CTL('p'),          &historyPrev,   CMD_NOTHING},
-    {KEY_ARROW_UP,      &historyPrev,   CMD_NOTHING},
-    {CTL('n'),          &historyNext,   CMD_NOTHING},
-    {KEY_ARROW_DOWN,    &historyNext,   CMD_NOTHING},
+    {CTL('p'),          &history_prev,  CMD_NOTHING},
+    {KEY_ARROW_UP,      &history_prev,  CMD_NOTHING},
+    {CTL('n'),          &history_next,  CMD_NOTHING},
+    {KEY_ARROW_DOWN,    &history_next,  CMD_NOTHING},
     
     {0,                 NULL,           CMD_NOTHING},
 };
 
-static LineCMD dispatch(Line* line, int key) {
+static line_cmd_t dispatch(line_t* line, int key) {
     
     for(int i = 0; bindings[i].key != 0; ++i) {
         if(bindings[i].key != key) continue;
         return bindings[i].function ?
             bindings[i].function(line, key) :
-            bindings[i].defaultCmd;
+            bindings[i].default_cmd;
     }
     return insert(line, key);
 }
 
-// MARK: - Public Line API
+// MARK: - Public line_t API
 
-Line* lineNew(const LineFunctions* functions) {
-    Line* line = malloc(sizeof(Line));
+line_t* line_new(const line_functions_t* functions) {
+    line_t* line = malloc(sizeof(line_t));
     assert(line && "line editor allocation failed");
     line->prompt = "";
     line->cursor = 0;
     
     line->functions = *functions;
-    stringInit(&line->buffer);
+    string_buf_init(&line->buffer);
     
     line->head = NULL;
     line->current = NULL;
@@ -246,83 +246,83 @@ Line* lineNew(const LineFunctions* functions) {
     return line;
 }
 
-void lineDealloc(Line* line) {
+void line_destroy(line_t* line) {
     assert(line && "cannot deallocate a null line");
-    stringDeinit(&line->buffer);
-    freeHistory(line);
+    string_buf_fini(&line->buffer);
+    free_history(line);
     free(line);
 }
 
-void lineRunCommand(LineAction action, void* param) {
+void line_run_cmd(line_action_t action, void* param) {
     
 }
 
-void lineSetPrompt(Line* line, const char* prompt) {
+void line_set_prompt(line_t* line, const char* prompt) {
     assert(line && "cannot set prompt on null line editor");
     assert(prompt && "prompt cannot be null");
     line->prompt = prompt;
 }
 
-// TODO: read in, dispatch, etc;
-char* lineGet(Line* line) {
-    hexesStartRawMode();
+char* line_get(line_t* line) {
+    hexes_raw_start();
     reset(line);
     
     char* result = NULL;
-    putString("\r\e[2K");
-    showPrompt(line);
+    put_string("\r\e[2K");
+    show_prompt(line);
     for(;;) {
-        int key = hexesGetKeyRaw();
-        LineCMD cmd = dispatch(line, key);
+        int key = hexes_get_key_raw();
+        line_cmd_t cmd = dispatch(line, key);
         
         switch(cmd.action) {
-        case kLineStay:
+        case LINE_STAY:
             if(cmd.param >= 0) break;
-            if(cmd.param < 0) backN(line, kLineStay, -cmd.param);
+            if(cmd.param < 0) back_n(line, LINE_STAY, -cmd.param);
             break;
             
-        case kLineDone:
-            showChar(line, key);
+        case LINE_DONE:
+            show_char(line, key);
+            put_string("\r\n");
             result = NULL;
             goto done;
             
-        case kLineReturn:
+        case LINE_RETURN:
             if(!line->buffer.count) {
-                putString("\r\n");
-                showPrompt(line);
+                put_string("\r\n");
+                show_prompt(line);
             } else {
-                putString("\n\r");
-                stringAppend(&line->buffer, '\n');
-                result = stringTake(&line->buffer);
+                put_string("\n\r");
+                string_buf_append(&line->buffer, '\n');
+                result = string_buf_take(&line->buffer);
                 goto done;
             }
             break;
             
-        case kLineMove:
-            if(cmd.param < 0) backN(line, kLineMove, -cmd.param);
-            if(cmd.param > 0) forwardN(line, cmd.param);
+        case LINE_MOVE:
+            if(cmd.param < 0) back_n(line, LINE_MOVE, -cmd.param);
+            if(cmd.param > 0) forward_n(line, cmd.param);
             break;
             
-        case kLineRefresh:
-            putString("\r\e[2K");
-            showPrompt(line);
-            showString(line, line->buffer.data);
+        case LINE_REFRESH:
+            put_string("\r\e[2K");
+            show_prompt(line);
+            show_string(line, line->buffer.data);
             break;
             
-        case kLineCancel:
-            showChar(line, key);
-            putString("\r\n");
-            showPrompt(line);
+        case LINE_CANCEL:
+            show_char(line, key);
+            put_string("\r\n");
+            show_prompt(line);
             break;
             
         }
     }
     
 done:
-    hexesStopRawMode();
+    hexes_raw_stop();
     fflush(stdout);
     line->current = NULL;
-    if(result) lineHistoryAdd(line, result);
+    if(result) line_history_add(line, result);
     return result;
 }
 
@@ -338,7 +338,7 @@ static char* strip(char* data) {
     return data;
 }
 
-void lineHistoryLoad(Line* line, const char* path) {
+void line_history_load(line_t* line, const char* path) {
     
     FILE* history = fopen(path, "rb");
     if(!history) return;
@@ -347,18 +347,18 @@ void lineHistoryLoad(Line* line, const char* path) {
     size_t size = 0;
     
     while(getline(&buffer, &size, history) > 0) {
-        lineHistoryAdd(line, buffer);
+        line_history_add(line, buffer);
     }
     
     free(buffer);
     fclose(history);
 }
 
-void lineHistoryWrite(Line* line, const char* path) {
+void line_history_write(line_t* line, const char* path) {
     FILE* history = fopen(path, "wb");
     if(!history) return;
     
-    HistoryEntry* entry = line->tail;
+    hist_entry_t* entry = line->tail;
     while(entry) {
         fprintf(history, "%s\n", entry->line);
         entry = entry->next;
@@ -366,9 +366,9 @@ void lineHistoryWrite(Line* line, const char* path) {
     fclose(history);
 }
 
-void lineHistoryAdd(Line* line, const char* data) {
+void line_history_add(line_t* line, const char* data) {
     int length = strlen(data);
-    HistoryEntry* entry = malloc(sizeof(HistoryEntry) + (length + 1) * sizeof(char));
+    hist_entry_t* entry = malloc(sizeof(hist_entry_t) + (length + 1) * sizeof(char));
     memcpy(entry->line, data, length);
     entry->line[length] = '\0';
     strip(entry->line);

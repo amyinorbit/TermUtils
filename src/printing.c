@@ -13,26 +13,26 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-static TermLevel level__ = kTermWarn;
+static term_filter_t level__ = TERM_WARN;
 
-void termFilter(TermLevel minimum) {
+void term_set_filter(term_filter_t minimum) {
     level__ = minimum;
 }
 
-static inline void printPreamble(const char* program, const char* what, TermColor color) {
-    termReset(stderr);
+static inline void print_preamble(const char* program, const char* what, term_color_t color) {
+    term_style_reset(stderr);
     fprintf(stderr, "%s: ", program);
-    termBold(stderr, true);
-    termColorFG(stderr, color);
+    term_set_bold(stderr, true);
+    term_set_fg(stderr, color);
     fprintf(stderr, "%s:", what);
-    termReset(stderr);
+    term_style_reset(stderr);
     fprintf(stderr, " ");
 }
 
 /// Reports an error to [stderr] with the given format string.
 /// If [code] is not 0, exit(code) will be called.
-void termError(const char* program, int code, const char* format, ...) {
-    printPreamble(program, "error", kTermRed);
+void term_error(const char* program, int code, const char* format, ...) {
+    print_preamble(program, "error", TERM_RED);
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -41,9 +41,9 @@ void termError(const char* program, int code, const char* format, ...) {
     if(code) exit(code);
 }
 
-void termWarn(const char* program, const char* format, ...) {
-    if(level__ > kTermWarn) return;
-    printPreamble(program, "warning", kTermMagenta);
+void term_warn(const char* program, const char* format, ...) {
+    if(level__ > TERM_WARN) return;
+    print_preamble(program, "warning", TERM_MAGENTA);
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -51,9 +51,9 @@ void termWarn(const char* program, const char* format, ...) {
     fputc('\n', stderr);
 }
 
-void termInfo(const char* program, const char* format, ...) {
-    if(level__ > kTermInfo) return;
-    printPreamble(program, "info", kTermDefault);
+void term_info(const char* program, const char* format, ...) {
+    if(level__ > TERM_INFO) return;
+    print_preamble(program, "info", TERM_DEFAULT);
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -61,19 +61,19 @@ void termInfo(const char* program, const char* format, ...) {
     fputc('\n', stderr);
 }
 
-void termPrintUsage(FILE* out, const char* program, const char** uses, int count) {
-    termReset(out);
-    termBold(out, true);
+void temr_print_usage(FILE* out, const char* program, const char** uses, int count) {
+    term_style_reset(out);
+    term_set_bold(out, true);
     fprintf(out, "Usage: ");
-    termReset(out);
+    term_style_reset(out);
     for(int i = 0; i < count; ++i) {
         if(i > 0) fprintf(out, "  or   ");
         fprintf(out, "%s %s\n", program, uses[i]);
     }
 }
 
-void termPrintBugreports(FILE* out, const char* program, const char* email, const char* website) {
-    termReset(out);
+void term_print_contact(FILE* out, const char* program, const char* email, const char* website) {
+    term_style_reset(out);
     if(email) fprintf(out, "Report bugs to: %s\n", email);
     if(website) fprintf(out, "%s home page: <%s>\n", program, website);
 }

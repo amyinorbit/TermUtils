@@ -14,20 +14,20 @@ typedef struct {
     int count;
     int capacity;
     char* data;
-} String;
+} string_buf_t;
 
-void stringInit(String* str);
-void stringDeinit(String* str);
+void string_buf_init(string_buf_t* str);
+void string_buf_fini(string_buf_t* str);
 
-void stringSet(String* str, const char* other);
+void string_buf_set(string_buf_t* str, const char* other);
 
 // int stringCountLines(const char* str, int length);
 // int stringCountColumns(const char* str, int length);
 
-void stringAppend(String* str, char c);
-void stringInsert(String* str, int pos, char c);
-void stringErase(String* str, int pos, int count);
+void string_buf_append(string_buf_t* str, char c);
+void string_buf_insert(string_buf_t* str, int pos, char c);
+void string_buf_erase(string_buf_t* str, int pos, int count);
 
-char* stringTake(String* str);
+char* string_buf_take(string_buf_t* str);
 
 #endif

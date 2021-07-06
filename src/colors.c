@@ -18,86 +18,86 @@
 #endif
 
 static const char* _fgColors[] = {
-    [kTermBlack] = "\033[30m",
-    [kTermRed] = "\033[31m",
-    [kTermGreen] = "\033[32m",
-    [kTermYellow] = "\033[33m",
-    [kTermBlue] = "\033[34m",
-    [kTermMagenta] = "\033[35m",
-    [kTermCyan] = "\033[36m",
-    [kTermWhite] = "\033[37m",
-    [kTermDefault] = "\033[39m",
-    [kTermBrightBlack] = "\033[30;1m",
-    [kTermBrightRed] = "\033[31;1m",
-    [kTermBrightGreen] = "\033[32;1m",
-    [kTermBrightYellow] = "\033[33;1m",
-    [kTermBrightBlue] = "\033[34;1m",
-    [kTermBrightMagenta] = "\033[35;1m",
-    [kTermBrightCyan] = "\033[36;1m",
-    [kTermBrightWhite] = "\033[37m",
-    [kTermInvalidColor]  = "",
+    [TERM_BLACK] = "\033[30m",
+    [TERM_RED] = "\033[31m",
+    [TERM_GREEN] = "\033[32m",
+    [TERM_YELLOW] = "\033[33m",
+    [TERM_BLUE] = "\033[34m",
+    [TERM_MAGENTA] = "\033[35m",
+    [TERM_CYAN] = "\033[36m",
+    [TERM_WHITE] = "\033[37m",
+    [TERM_DEFAULT] = "\033[39m",
+    [TERM_BRIGHT_BLACK] = "\033[30;1m",
+    [TERM_BRIGHT_RED] = "\033[31;1m",
+    [TERM_BRIGHT_GREEN] = "\033[32;1m",
+    [TERM_BRIGHT_YELLOW] = "\033[33;1m",
+    [TERM_BRIGHT_BLUE] = "\033[34;1m",
+    [TERM_BRIGHT_MAGENTA] = "\033[35;1m",
+    [TERM_BRIGHT_CYAN] = "\033[36;1m",
+    [TERM_BRIGHT_WHITE] = "\033[37m",
+    [TERM_INVALID_COLOR]  = "",
 };
 
 static const char* _bgColors[] = {
-    [kTermBlack] = "\033[40m",
-    [kTermRed] = "\033[41m",
-    [kTermGreen] = "\033[42m",
-    [kTermYellow] = "\033[43m",
-    [kTermBlue] = "\033[44m",
-    [kTermMagenta] = "\033[45m",
-    [kTermCyan] = "\033[46m",
-    [kTermWhite] = "\033[47m",
-    [kTermDefault] = "\033[49m",
-    [kTermBrightBlack] = "\033[40;1m",
-    [kTermBrightRed] = "\033[41;1m",
-    [kTermBrightGreen] = "\033[42;1m",
-    [kTermBrightYellow] = "\033[43;1m",
-    [kTermBrightBlue] = "\033[44;1m",
-    [kTermBrightMagenta] = "\033[45;1m",
-    [kTermBrightCyan] = "\033[46;1m",
-    [kTermBrightWhite] = "\033[47;1m",
-    [kTermInvalidColor]  = "",
+    [TERM_BLACK] = "\033[40m",
+    [TERM_RED] = "\033[41m",
+    [TERM_GREEN] = "\033[42m",
+    [TERM_YELLOW] = "\033[43m",
+    [TERM_BLUE] = "\033[44m",
+    [TERM_MAGENTA] = "\033[45m",
+    [TERM_CYAN] = "\033[46m",
+    [TERM_WHITE] = "\033[47m",
+    [TERM_DEFAULT] = "\033[49m",
+    [TERM_BRIGHT_BLACK] = "\033[40;1m",
+    [TERM_BRIGHT_RED] = "\033[41;1m",
+    [TERM_BRIGHT_GREEN] = "\033[42;1m",
+    [TERM_BRIGHT_YELLOW] = "\033[43;1m",
+    [TERM_BRIGHT_BLUE] = "\033[44;1m",
+    [TERM_BRIGHT_MAGENTA] = "\033[45;1m",
+    [TERM_BRIGHT_CYAN] = "\033[46;1m",
+    [TERM_BRIGHT_WHITE] = "\033[47;1m",
+    [TERM_INVALID_COLOR]  = "",
 };
 
 
-bool termHasColors(FILE* term) {
+bool term_has_colors(FILE* term) {
     return SUPPORTS_COLOR(term);
 }
 
-void termBold(FILE* term, bool bold) {
-    if(!termHasColors(term)) return;
+void term_set_bold(FILE* term, bool bold) {
+    if(!term_has_colors(term)) return;
     if(bold)
         fprintf(term, "\033[1m");
     else
         fprintf(term, "\033[22m");
 }
 
-void termUnderline(FILE* term, bool underline) {
-    if(!termHasColors(term)) return;
+void term_set_underline(FILE* term, bool underline) {
+    if(!term_has_colors(term)) return;
     if(underline)
         fprintf(term, "\033[4m");
     else
         fprintf(term, "\033[24m");
 }
 
-void termColorFG(FILE* term, TermColor color) {
-    if(!termHasColors(term)) return;
-    assert(color >= kTermBlack && color < kTermInvalidColor);
+void term_set_fg(FILE* term, term_color_t color) {
+    if(!term_has_colors(term)) return;
+    assert(color >= TERM_BLACK && color < TERM_INVALID_COLOR);
     fprintf(term, "%s", _fgColors[color]);
 }
 
-void termColorBG(FILE* term, TermColor color) {
-    if(!termHasColors(term)) return;
-    assert(color >= kTermBlack && color < kTermInvalidColor);
+void term_set_bg(FILE* term, term_color_t color) {
+    if(!term_has_colors(term)) return;
+    assert(color >= TERM_BLACK && color < TERM_INVALID_COLOR);
     fprintf(term, "%s", _bgColors[color]);
 }
 
-void termColorReverse(FILE* term) {
-    if(!termHasColors(term)) return;
+void term_reverse(FILE* term) {
+    if(!term_has_colors(term)) return;
     fprintf(term, "\033[7m");
 }
 
-void termReset(FILE* term) {
-    if(!termHasColors(term)) return;
+void term_style_reset(FILE* term) {
+    if(!term_has_colors(term)) return;
     fprintf(term, "\033[0m");
 }

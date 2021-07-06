@@ -5,32 +5,31 @@
 #include <term/editor.h>
 #include <term/line.h>
 #include <stdlib.h>
-#include "shims.h"
 
 void prompt(const char* PS) {
-    termColorFG(stdout, kTermBlue);
+    term_set_fg(stdout, TERM_BLUE);
     printf("%s > ", PS);
-    termColorFG(stdout, kTermDefault);
+    term_set_fg(stdout, TERM_DEFAULT);
 }
 
 int main(int argc, const char** argv) {
 
-    termFilter(kTermInfo);
+    term_set_filter(TERM_INFO);
     
-    LineFunctions functions;
-    functions.printPrompt = prompt;
+    line_functions_t functions;
+    functions.print_prompt = prompt;
     
-    Line* line = lineNew(&functions);
-    lineHistoryLoad(line, ".demo_history");
+    line_t* line = line_new(&functions);
+    line_history_load(line, ".demo_history");
     
-    lineSetPrompt(line, "repl");
+    line_set_prompt(line, "repl");
     
     char* input = NULL;
-    while((input = lineGet(line))) {
-        termInfo("demo", "received input: %s", input);
+    while((input = line_get(line))) {
+        term_info("demo", "received input: %s", input);
         free(input);
     }
     
-    lineHistoryWrite(line, ".demo_history");
-    lineDealloc(line);
+    line_history_write(line, ".demo_history");
+    line_destroy(line);
 }

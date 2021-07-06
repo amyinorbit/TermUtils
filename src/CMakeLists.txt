@@ -1,4 +1,4 @@
-add_library(TermUtils STATIC
+add_library(termutils STATIC
     arg_parsing.c
     arg_printing.c
     arg_utils.c
@@ -7,10 +7,10 @@ add_library(TermUtils STATIC
     line.c
     editor.c
     hexes.c
-    string.c
+    string_buf.c
 )
-target_include_directories(TermUtils PUBLIC ${PROJECT_SOURCE_DIR}/include)
-install(TARGETS TermUtils ARCHIVE DESTINATION lib)
+target_include_directories(termutils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+install(TARGETS termutils ARCHIVE DESTINATION lib)
 
 add_executable(demo main.c)
-target_link_libraries(demo PRIVATE TermUtils)
+target_link_libraries(demo PRIVATE termutils)

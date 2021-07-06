@@ -10,7 +10,7 @@
 #include <term/editor.h>
 #include <term/colors.h>
 #include <term/hexes.h>
-#include "string.h"
+#include "string_buf.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -45,7 +45,7 @@ typedef struct Editor {
 
     Token highlight;
     
-    String buffer;
+    string_buf_t buffer;
 
     const char* status;
     char* message;
@@ -75,7 +75,7 @@ static void editorDEL() {
     if(tbd == '\n') {
         assert(y < E.lineCount - 1 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == line->count && "We should be at the end of the line");
-        stringErase(&E.buffer, offset, 1);
+        string_buf_erase(&E.buffer, offset, 1);
 
         EditorLine* next = &E.lines[y+1];
         line->count += next->count;
@@ -85,7 +85,7 @@ static void editorDEL() {
             E.lines[i] = E.lines[i+1];
         }
     } else {
-        stringErase(&E.buffer, offset, 1);
+        string_buf_erase(&E.buffer, offset, 1);
         line->count -= 1;
     }
     for(int i = (E.offset.y + E.cursor.y)+1; i < E.lineCount; ++i) E.lines[i].offset -= 1;
@@ -105,7 +105,7 @@ static void editorBackspace() {
     if(tbd == '\n') {
         assert(y > 0 && "If we're deleting \\n, we shouldn't be on the first line");
         assert(x == 0 && "We should be at the start of the line");
-        stringErase(&E.buffer, offset, 1);
+        string_buf_erase(&E.buffer, offset, 1);
 
         EditorLine* prev = &E.lines[y-1];
         E.cursor.x += prev->count;
@@ -118,7 +118,7 @@ static void editorBackspace() {
         }
 
     } else {
-        stringErase(&E.buffer, offset, 1);
+        string_buf_erase(&E.buffer, offset, 1);
         line->count -= 1;
         E.cursor.x -= 1;
     }
@@ -131,7 +131,7 @@ static void editorInsert(char c) {
 
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    stringInsert(&E.buffer, offset, c);
+    string_buf_insert(&E.buffer, offset, c);
     E.cursor.x += 1;
 
     // Then we need to move lines. The only things that change are offsets
@@ -147,7 +147,7 @@ static void editorNewline() {
 
     EditorLine* line = &E.lines[y];
     int offset = line->offset + x;
-    stringInsert(&E.buffer, offset, '\n');
+    string_buf_insert(&E.buffer, offset, '\n');
 
     EditorLine next = (EditorLine){.offset=line->offset + x + 1, .count=line->count - x};
     line->count = x;
@@ -176,7 +176,7 @@ void termEditorInit(const char* title) {
     E.lineCapacity = 0;
     ensureLines(1);
 
-    stringInit(&E.buffer);
+    string_buf_init(&E.buffer);
 
     E.lines[0] = (EditorLine){.count = 0, .offset = 0};
 
@@ -185,14 +185,14 @@ void termEditorInit(const char* title) {
     E.message[0] = '\0';
     E.highlight = (Token){-1, -1, -1};
 
-    hexesStartRawMode();
-    hexesScreenAlternate(true);
+    hexes_raw_start();
+    hexes_set_alternate(true);
 }
 
 void termEditorDeinit() {
-    hexesStopRawMode();
-    hexesScreenAlternate(false);
-    stringDeinit(&E.buffer);
+    hexes_raw_stop();
+    hexes_set_alternate(false);
+    string_buf_fini(&E.buffer);
     
     if(E.lines) free(E.lines);
     if(E.message) free(E.message);
@@ -220,7 +220,7 @@ const char* termEditorBuffer(int* length) {
 
 static void keepInView() {
     int nx = 0, ny = 0;
-    assert(hexesGetSize(&nx, &ny) == 0);
+    assert(hexes_get_size(&nx, &ny) == 0);
     nx -= 5; // To account for the line number space
     ny -= 3; // To account for the status bar
 
@@ -278,30 +278,30 @@ static void renderTitle(int nx, int ny) {
     char locBuffer[16];
     int locLength = snprintf(locBuffer, 16, " (%d, %d)  ", c, r);
 
-    termColorFG(stdout, kTermBlue);
-    hexesCursorGo(0, ny-2);
-    termColorReverse(stdout);
+    term_set_fg(stdout, TERM_BLUE);
+    hexes_cursor_go(0, ny-2);
+    term_reverse(stdout);
     int titleLength = printf("  %s | ", E.title);
 
 
     int statusLength = E.status ? min(nx - (titleLength + locLength), (int)strlen(E.status)) : 0;
     int locPad = nx - (titleLength + statusLength);
     printf("%.*s%*s", statusLength, E.status ? E.status : "", locPad, locBuffer);
-    termReset(stdout);
+    term_style_reset(stdout);
 }
 
 static void renderMessage(int nx, int ny) {
     int length = strlen(E.message);
     if(!length) return;
-    hexesCursorGo(0, ny-1);
-    termBold(stdout, true);
+    hexes_cursor_go(0, ny-1);
+    term_set_bold(stdout, true);
     printf("> %.*s", min(nx - 2, strlen(E.message)), E.message);
-    termReset(stdout);
+    term_style_reset(stdout);
 }
 
 static bool renderLineHead(int l) {
     bool done = false;
-    termColorFG(stdout, kTermBlue);
+    term_set_fg(stdout, TERM_BLUE);
     if(l < E.lineCount) {
         printf("%3d ", l + 1);
         done = false;
@@ -309,12 +309,12 @@ static bool renderLineHead(int l) {
         printf("  ~ ");
         done = true;
     }
-    termColorFG(stdout, kTermDefault);
+    term_set_fg(stdout, TERM_DEFAULT);
     return done;
 }
 
 static void renderLine(int i, int nx, int ny) {
-    hexesCursorGo(0, i);
+    hexes_cursor_go(0, i);
     hexesClearLine();
     int index = i + E.offset.y;
     if(renderLineHead(index)) return;
@@ -329,24 +329,24 @@ static void renderLine(int i, int nx, int ny) {
         int idx = i + E.offset.x;
         if(idx == line.count) break;
         if(idx == startHL && index == E.highlight.line-1) {
-            termUnderline(stdout, true);
-            termBold(stdout, true);
-            termColorFG(stdout, kTermRed);
+            term_set_underline(stdout, true);
+            term_set_bold(stdout, true);
+            term_set_fg(stdout, TERM_RED);
         }
         putchar(E.buffer.data[line.offset + idx]);
         if(idx == endHL && index == E.highlight.line-1) {
-            termReset(stdout);
+            term_style_reset(stdout);
         }
     }
 
-    termReset(stdout);
+    term_style_reset(stdout);
 
 }
 
 void termEditorRender() {
     int nx = 0, ny = 0;
-    assert(hexesGetSize(&nx, &ny) == 0);
-    hexesCursorGo(0, 0);
+    assert(hexes_get_size(&nx, &ny) == 0);
+    hexes_cursor_go(0, 0);
 
     Coords screen = (Coords){
         E.cursor.x + 4,
@@ -357,7 +357,7 @@ void termEditorRender() {
     renderTitle(nx, ny);
     renderMessage(nx, ny);
 
-    hexesCursorGo(screen.x, screen.y);
+    hexes_cursor_go(screen.x, screen.y);
     fflush(stdout);
 }
 
@@ -400,7 +400,7 @@ void termEditorInsert(char c) {
 }
 
 HexesKey termEditorUpdate() {
-    int c = hexesGetKeyRaw();
+    int c = hexes_get_key_raw();
     switch(c) {
     case KEY_RETURN:
         editorNewline();

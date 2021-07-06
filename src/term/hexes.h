@@ -36,25 +36,25 @@ typedef enum {
     KEY_PAGE_DOWN,
 } HexesKey;
 
-int hexesGetCh();
-int hexesGetSize(int* x, int* y);
+int hexes_get_char();
+int hexes_get_size(int* x, int* y);
 
-HexesKey hexesGetKey();
-HexesKey hexesGetKeyRaw();
+HexesKey hexes_get_key();
+HexesKey hexes_get_key_raw();
 
-void hexesScreenAlternate(bool alt);
+void hexes_set_alternate(bool alt);
 
-void hexesCursorUp(int n);
-void hexesCursorDown(int n);
-void hexesCursorLeft(int n);
-void hexesCursorRight(int n);
-void hexesCursorGo(int x, int y);
+void hexes_cursor_up(int n);
+void hexes_cursor_down(int n);
+void hexes_cursor_left(int n);
+void hexes_cursor_right(int n);
+void hexes_cursor_go(int x, int y);
 
 void hexesClearLine();
 void hexesClearScreen();
 
-void hexesStartRawMode();
-void hexesStopRawMode();
+void hexes_raw_start();
+void hexes_raw_stop();
 
 
 

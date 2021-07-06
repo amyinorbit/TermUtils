@@ -22,7 +22,7 @@
 #include <sys/ioctl.h>
 #endif
 
-int hexesGetCh() {
+int hexes_get_char() {
 #ifdef _WIN32
     return _getch();
 #else
@@ -38,19 +38,19 @@ int hexesGetCh() {
 #endif
 }
 
-HexesKey hexesGetKey() {
+HexesKey hexes_get_key() {
     int buf[3];
 
-    char c = hexesGetCh();
+    char c = hexes_get_char();
     switch(c) {
     case KEY_ESC:
-        if((buf[0] = hexesGetCh()) < 0) return KEY_ESC;
-        if((buf[1] = hexesGetCh()) < 0) return KEY_ESC;
+        if((buf[0] = hexes_get_char()) < 0) return KEY_ESC;
+        if((buf[1] = hexes_get_char()) < 0) return KEY_ESC;
 
         if(buf[0] == '[') {
             // If we have a digit, then we have an extended escape sequence
             if(isdigit(buf[1])) {
-                if((buf[2] = hexesGetCh()) < 0) return KEY_ESC;
+                if((buf[2] = hexes_get_char()) < 0) return KEY_ESC;
                 if(buf[2] == '~') {
                     switch(buf[1]) {
                         case '3': return KEY_DELETE;
@@ -74,7 +74,7 @@ HexesKey hexesGetKey() {
     return -1;
 }
 
-HexesKey hexesGetKeyRaw() {
+HexesKey hexes_get_key_raw() {
     int buf[3];
 
     char c = getchar();
@@ -110,7 +110,7 @@ HexesKey hexesGetKeyRaw() {
     return -1;
 }
 
-int hexesGetSize(int* x, int* y) {
+int hexes_get_size(int* x, int* y) {
     #ifdef _WIN32
     	CONSOLE_SCREEN_BUFFER_INFO info;
     	if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info))
@@ -137,42 +137,42 @@ int hexesGetSize(int* x, int* y) {
     #endif // _WIN32
 }
 
-void hexesScreenAlternate(bool alt) {
+void hexes_set_alternate(bool alt) {
     if(alt)
         printf("\033[?1049h");
     else
         printf("\033[?1049l");
 }
 
-void hexesCursorUp(int n) {
+void hexes_cursor_up(int n) {
     #ifdef _WIN32
     #else
     if(n)printf("\033[%dA", n);
     #endif
 }
 
-void hexesCursorDown(int n) {
+void hexes_cursor_down(int n) {
     #ifdef _WIN32
     #else
     if(n)printf("\033[%dB", n);
     #endif
 }
 
-void hexesCursorLeft(int n) {
+void hexes_cursor_left(int n) {
     #ifdef _WIN32
     #else
     if(n)printf("\033[%dD", n);
     #endif
 }
 
-void hexesCursorRight(int n) {
+void hexes_cursor_right(int n) {
     #ifdef _WIN32
     #else
     if(n)printf("\033[%dC", n);
     #endif
 }
 
-void hexesCursorGo(int x, int y) {
+void hexes_cursor_go(int x, int y) {
     #ifdef _WIN32
     #else
     // printf("\033[%d;1H\033[2K", 1 + i);
@@ -186,7 +186,7 @@ static bool inRawMode = false;
 static struct termios savedTerm;
 #endif
 
-void hexesStartRawMode() {
+void hexes_raw_start() {
     if(inRawMode) return;
 #ifdef _WIN32
 #else
@@ -209,7 +209,7 @@ void hexesStartRawMode() {
 #endif
 }
 
-void hexesStopRawMode() {
+void hexes_raw_stop() {
     if(!inRawMode) return;
 #ifdef _WIN32
 #else
