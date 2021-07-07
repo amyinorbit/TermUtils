@@ -28,8 +28,9 @@ typedef struct {
 } binding_data_t;
 
 struct line_t {
-    const char* prompt;
     int cursor;
+    
+    char prompt[32];
     
     line_functions_t functions;
     string_buf_t buffer;
@@ -199,7 +200,7 @@ static const binding_data_t bindings[] = {
     {CTL('d'),          NULL,           CMD(LINE_DONE, 0)},
     {CTL('c'),          &clear,         CMD_NOTHING},
     {CTL('m'),          NULL,           CMD(LINE_RETURN, 0)},
-    {CTL('l'),          NULL,           CMD(LINE_REFRESH, 0)},
+    // {CTL('l'),          NULL,           CMD(LINE_REFRESH, 0)},
     
     {KEY_BACKSPACE,     &backspace,     CMD_NOTHING},
     {KEY_DELETE,        &delete,        CMD_NOTHING},
@@ -209,7 +210,6 @@ static const binding_data_t bindings[] = {
     {CTL('f'),          NULL,           CMD(LINE_MOVE, 1)},
     {KEY_ARROW_RIGHT,   NULL,           CMD(LINE_MOVE, 1)},
     
-    // TODO: implement history commands
     {CTL('p'),          &history_prev,  CMD_NOTHING},
     {KEY_ARROW_UP,      &history_prev,  CMD_NOTHING},
     {CTL('n'),          &history_next,  CMD_NOTHING},
@@ -234,7 +234,7 @@ static line_cmd_t dispatch(line_t* line, int key) {
 line_t* line_new(const line_functions_t* functions) {
     line_t* line = malloc(sizeof(line_t));
     assert(line && "line editor allocation failed");
-    line->prompt = "";
+    strcpy(line->prompt, "");
     line->cursor = 0;
     
     line->functions = *functions;
@@ -260,7 +260,7 @@ void line_run_cmd(line_action_t action, void* param) {
 void line_set_prompt(line_t* line, const char* prompt) {
     assert(line && "cannot set prompt on null line editor");
     assert(prompt && "prompt cannot be null");
-    line->prompt = prompt;
+    strncpy(line->prompt, prompt, sizeof(line->prompt)-1);
 }
 
 char* line_get(line_t* line) {
