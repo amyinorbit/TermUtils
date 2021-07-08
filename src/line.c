@@ -200,6 +200,7 @@ static const binding_data_t bindings[] = {
     {CTL('d'),          NULL,           CMD(LINE_DONE, 0)},
     {CTL('c'),          &clear,         CMD_NOTHING},
     {CTL('m'),          NULL,           CMD(LINE_RETURN, 0)},
+    {CTL('J'),          NULL,           CMD(LINE_RETURN, 0)},
     // {CTL('l'),          NULL,           CMD(LINE_REFRESH, 0)},
     
     {KEY_BACKSPACE,     &backspace,     CMD_NOTHING},
