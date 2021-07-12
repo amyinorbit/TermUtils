@@ -128,6 +128,14 @@ static line_cmd_t delete(line_t* line, int key) {
     return finish_line(line);
 }
 
+static line_cmd_t ctrl_d(line_t *line, int key) {
+    if(line->buffer.count) {
+        return delete(line, key);
+    } else {
+        return CMD(LINE_DONE, 0);
+    }
+}
+
 static line_cmd_t clear(line_t* line, int key) {
     line->cursor = 0;
     line->buffer.count = 0;
@@ -197,7 +205,7 @@ static line_cmd_t history_next(line_t* line, int key) {
 // TODO: this should probably get moved to the line_t* object itself, once we add custom bindings
 
 static const binding_data_t bindings[] = {
-    {CTL('d'),          NULL,           CMD(LINE_DONE, 0)},
+    {CTL('d'),          &ctrl_d,        CMD_NOTHING},
     {CTL('c'),          &clear,         CMD_NOTHING},
     {CTL('m'),          NULL,           CMD(LINE_RETURN, 0)},
     {CTL('J'),          NULL,           CMD(LINE_RETURN, 0)},
