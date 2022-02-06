@@ -38,7 +38,7 @@ static inline const char* eat(term_arg_parser_t* parser) {
     return parser->start < parser->end ? *(parser->start++) : NULL;
 }
 
-static const term_param_t* findShort(char name, const term_param_t* params, int count) {
+static const term_param_t* find_short(char name, const term_param_t* params, int count) {
     for(int i = 0; i < count; ++i) {
         if(!isalnum(params[i].name)) continue;
         if(params[i].name == name) return &params[i];
@@ -46,7 +46,7 @@ static const term_param_t* findShort(char name, const term_param_t* params, int 
     return NULL;
 }
 
-static const term_param_t* findLong(const char* name, const term_param_t* params, int count) {
+static const term_param_t* find_long(const char* name, const term_param_t* params, int count) {
     for(int i = 0; i < count; ++i) {
         if(!params[i].long_name) continue;
         if(strcmp(params[i].long_name, name) == 0) return &params[i];
@@ -54,15 +54,15 @@ static const term_param_t* findLong(const char* name, const term_param_t* params
     return NULL;
 }
 
-static inline bool isPositional(const char* arg, size_t length) {
+static inline bool is_positional(const char* arg, size_t length) {
     return length == 1 || (arg[0] != '-');
 }
 
-static inline bool isShort(const char* arg, size_t length) {
+static inline bool is_short(const char* arg, size_t length) {
     return length >= 2 && arg[0] == '-' && isalnum(arg[1]);
 }
 
-static inline bool isLong(const char* arg, size_t length) {
+static inline bool is_long(const char* arg, size_t length) {
     return length >= 3 && arg[0] == '-' && arg[1] == '-' && isalnum(arg[2]);
 }
 
@@ -70,7 +70,7 @@ static inline int id(const term_param_t* param) {
     return isalnum(param->name) ? param->name : param->id;
 }
 
-static term_arg_result_t finishValue(term_arg_parser_t* parser, const term_param_t* param) {
+static term_arg_result_t finish_value(term_arg_parser_t* parser, const term_param_t* param) {
     assert(param->kind == TERM_ARG_VALUE);
 
     const char* value = eat(parser);
@@ -79,7 +79,7 @@ static term_arg_result_t finishValue(term_arg_parser_t* parser, const term_param
     return ok(id(param), value);
 }
 
-static term_arg_result_t finishValueLong(term_arg_parser_t* parser, const char* arg, const term_param_t* param) {
+static term_arg_result_t finish_value_long(term_arg_parser_t* parser, const char* arg, const term_param_t* param) {
     assert(param->kind == TERM_ARG_VALUE);
 
     const char* value = eat(parser);
@@ -89,39 +89,40 @@ static term_arg_result_t finishValueLong(term_arg_parser_t* parser, const char* 
 }
 
 
-static term_arg_result_t shortArg(term_arg_parser_t* parser, const term_param_t* options, int count) {
+static term_arg_result_t short_arg(term_arg_parser_t* parser, const term_param_t* options, int count) {
     const char* list = current(parser) + 1;
-    const char* listEnd = list + strlen(list);
-    bool canHaveValue = strlen(list) == 1;
+    const char* list_end = list + strlen(list);
+    bool can_have_value = strlen(list) == 1;
     
     char flag = *(list + parser->offset++);
     if(flag == 'h') return bail(TERM_ARG_HELP);
     
-    const term_param_t* param = findShort(flag, options, count);
+    const term_param_t* param = find_short(flag, options, count);
     if(!param) return fail(parser, "unknown argument: '-%c'", flag);
     
     if(param->kind == TERM_ARG_OPTION) {
-        if((list + parser->offset) >= listEnd) eat(parser);
+        if((list + parser->offset) >= list_end) eat(parser);
         return ok(id(param), NULL);
     }
     
-    if(!canHaveValue) return fail(parser, "argument '-%c' requires a value", param->name);
-    return finishValue(parser, param);
+    if(!can_have_value) return fail(parser, "argument '-%c' requires a value", param->name);
+    eat(parser);
+    return finish_value(parser, param);
 }
 
-static term_arg_result_t longArg(term_arg_parser_t* parser, const term_param_t* options, int count) {
+static term_arg_result_t long_arg(term_arg_parser_t* parser, const term_param_t* options, int count) {
     const char* arg = eat(parser) + 2; // skip the 
     if(strcmp(arg, "help") == 0) return bail(TERM_ARG_HELP);
     if(strcmp(arg, "version") == 0) return bail(TERM_ARG_VERSION);
     
-    const term_param_t* param = findLong(arg, options, count);
+    const term_param_t* param = find_long(arg, options, count);
     if(!param) return fail(parser, "unknown argument: '--%s'", arg);
     
-    if(param->kind == TERM_ARG_VALUE) return finishValueLong(parser, arg, param);
+    if(param->kind == TERM_ARG_VALUE) return finish_value_long(parser, arg, param);
     return ok(id(param), NULL);
 }
 
-static term_arg_result_t positionalArg(term_arg_parser_t* parser) {
+static term_arg_result_t positional_arg(term_arg_parser_t* parser) {
     return ok(TERM_ARG_POSITIONAL, eat(parser));
 }
 
@@ -139,8 +140,8 @@ term_arg_result_t term_arg_parse(term_arg_parser_t* parser, const term_param_t* 
         length = strlen(arg);
     }
     
-    if(!parser->inOptions || isPositional(arg, length)) return positionalArg(parser);
-    if(isShort(arg, length)) return shortArg(parser, options, count);
-    if(isLong(arg, length)) return longArg(parser, options, count);
+    if(!parser->inOptions || is_positional(arg, length)) return positional_arg(parser);
+    if(is_short(arg, length)) return short_arg(parser, options, count);
+    if(is_long(arg, length)) return long_arg(parser, options, count);
     return fail(parser, "'%s' is not a valid argument", arg);
 }

@@ -61,7 +61,7 @@ void term_info(const char* program, const char* format, ...) {
     fputc('\n', stderr);
 }
 
-void temr_print_usage(FILE* out, const char* program, const char** uses, int count) {
+void term_print_usage(FILE* out, const char* program, const char** uses, int count) {
     term_style_reset(out);
     term_set_bold(out, true);
     fprintf(out, "Usage: ");

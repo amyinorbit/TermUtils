@@ -22,7 +22,7 @@ void term_warn(const char* program, const char* format, ...);
 void term_info(const char* program, const char* format, ...);
 
 
-void temr_print_usage(FILE* out, const char* program, const char** uses, int count);
+void term_print_usage(FILE* out, const char* program, const char** uses, int count);
 void term_print_contact(FILE* out, const char* program, const char* email, const char* website);
 
 #endif
