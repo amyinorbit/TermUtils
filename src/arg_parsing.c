@@ -113,7 +113,7 @@ static term_arg_result_t short_arg(term_arg_parser_t* parser, const term_param_t
 static term_arg_result_t long_arg(term_arg_parser_t* parser, const term_param_t* options, int count) {
     const char* arg = eat(parser) + 2; // skip the 
     if(strcmp(arg, "help") == 0) return bail(TERM_ARG_HELP);
-    if(strcmp(arg, "version") == 0) return bail(TERM_ARG_VERSION);
+    // if(strcmp(arg, "version") == 0) return bail(TERM_ARG_VERSION);
     
     const term_param_t* param = find_long(arg, options, count);
     if(!param) return fail(parser, "unknown argument: '--%s'", arg);

@@ -64,7 +64,7 @@ static void print_param(FILE* out, const term_param_t* param, uint8_t start) {
     }
 }
 
-static const term_param_t version = {0, 0, "version", 0, "print version number"};
+// static const term_param_t version = {0, 0, "version", 0, "print version number"};
 static const term_param_t help = {'h', 0, "help", 0, "print this help message"};
 
 void term_print_help(FILE* out, const term_param_t* params, int count) {
@@ -77,6 +77,6 @@ void term_print_help(FILE* out, const term_param_t* params, int count) {
         print_param(out, params + i, 25);
     }
     
-    print_param(out, &version, 25);
+    // print_param(out, &version, 25);
     print_param(out, &help, 25);
 }
