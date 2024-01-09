@@ -218,14 +218,14 @@ void hexes_raw_stop() {
 #endif
 }
 
-void hexesClearLine() {
+void hexes_clear_line() {
 #ifdef _WIN32
 #else
     printf("\033[2K");
 #endif
 }
 
-void hexesClearScreen() {
+void hexes_clear_screen() {
 #ifdef _WIN32
 #else
     printf("\033[2J");

@@ -50,8 +50,8 @@ void hexes_cursor_left(int n);
 void hexes_cursor_right(int n);
 void hexes_cursor_go(int x, int y);
 
-void hexesClearLine();
-void hexesClearScreen();
+void hexes_clear_line();
+void hexes_clear_screen();
 
 void hexes_raw_start();
 void hexes_raw_stop();

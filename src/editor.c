@@ -315,7 +315,7 @@ static bool renderLineHead(int l) {
 
 static void renderLine(int i, int nx, int ny) {
     hexes_cursor_go(0, i);
-    hexesClearLine();
+    hexes_clear_line();
     int index = i + E.offset.y;
     if(renderLineHead(index)) return;
     EditorLine line = E.lines[index];
