@@ -137,6 +137,13 @@ int hexes_get_size(int* x, int* y) {
     #endif // _WIN32
 }
 
+void hexes_show_cursor(bool show) {
+        if(show)
+            printf("\033[?25h");
+        else
+            printf("\033[?25l");
+}
+
 void hexes_set_alternate(bool alt) {
     if(alt)
         printf("\033[?1049h");

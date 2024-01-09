@@ -44,6 +44,7 @@ HexesKey hexes_get_key_raw();
 
 void hexes_set_alternate(bool alt);
 
+void hexes_show_cursor(bool show);
 void hexes_cursor_up(int n);
 void hexes_cursor_down(int n);
 void hexes_cursor_left(int n);
